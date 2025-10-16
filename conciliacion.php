@@ -11,6 +11,12 @@ $usuario_id = $_SESSION['usuario_id'];
 $db = new Database('A');
 $conn = $db->getConnection();
 
+// Inicializar arrays
+$bancos = [];
+$pagos = [];
+$movimientos = [];
+$error = '';
+
 // Procesar archivo del banco
 if (isset($_POST['subir_movimientos'])) {
     if (isset($_FILES['archivo_banco']) && $_FILES['archivo_banco']['error'] == 0) {
@@ -36,12 +42,19 @@ if (isset($_POST['subir_movimientos'])) {
                         $sql = "INSERT INTO movimientos_banco (banco_id, referencia, descripcion, monto, fecha_movimiento, fecha_registro) 
                                 VALUES (?, ?, ?, ?, ?, GETDATE())";
                         $referencia = extraerReferencia($descripcion);
-                        sqlsrv_query($conn, $sql, array($banco_id, $referencia, $descripcion, $monto, $fecha_str));
+                        $params = array($banco_id, $referencia, $descripcion, $monto, $fecha_str);
+                        
+                        $stmt = sqlsrv_query($conn, $sql, $params);
+                        if ($stmt === false) {
+                            $error = "Error al insertar movimiento: " . print_r(sqlsrv_errors(), true);
+                        }
                     }
                 }
             }
             fclose($handle);
-            $_SESSION['success'] = "Movimientos bancarios cargados exitosamente";
+            if (empty($error)) {
+                $_SESSION['success'] = "Movimientos bancarios cargados exitosamente";
+            }
         }
     }
 }
@@ -49,45 +62,89 @@ if (isset($_POST['subir_movimientos'])) {
 // Conciliación manual/automática
 if (isset($_POST['conciliar'])) {
     if (isset($_POST['pagos_seleccionados'])) {
+        $contador = 0;
         foreach ($_POST['pagos_seleccionados'] as $pago_id) {
             // Marcar pago como conciliado
             $sql = "UPDATE pagos SET estado = 'conciliado', fecha_conciliacion = GETDATE() WHERE id = ?";
-            sqlsrv_query($conn, $sql, array($pago_id));
+            $stmt = sqlsrv_query($conn, $sql, array($pago_id));
+            if ($stmt !== false) {
+                $contador++;
+            }
         }
-        $_SESSION['success'] = count($_POST['pagos_seleccionados']) . " pagos conciliados exitosamente";
+        $_SESSION['success'] = $contador . " pagos conciliados exitosamente";
+        
+        // Aquí podrías agregar el envío de correos
+        // enviarNotificaciones($_POST['pagos_seleccionados']);
     }
 }
 
-// Obtener bancos
-$bancos_sql = "SELECT * FROM bancos WHERE activo = 1";
-$bancos_stmt = sqlsrv_query($conn, $bancos_sql);
-$bancos = [];
-while ($row = sqlsrv_fetch_array($bancos_stmt, SQLSRV_FETCH_ASSOC)) {
-    $bancos[] = $row;
+// Obtener bancos - con manejo de errores
+try {
+    $bancos_sql = "SELECT * FROM bancos WHERE activo = 1";
+    $bancos_stmt = sqlsrv_query($conn, $bancos_sql);
+    if ($bancos_stmt === false) {
+        throw new Exception("Error en consulta de bancos: " . print_r(sqlsrv_errors(), true));
+    }
+    
+    while ($row = sqlsrv_fetch_array($bancos_stmt, SQLSRV_FETCH_ASSOC)) {
+        $bancos[] = $row;
+    }
+} catch (Exception $e) {
+    $error = $e->getMessage();
 }
 
-// Obtener pagos pendientes
-$pagos_sql = "SELECT p.*, b.nombre as banco_nombre, b.color as banco_color 
-              FROM pagos p 
-              LEFT JOIN bancos b ON p.banco_id = b.id 
-              WHERE p.estado IN ('pendiente', 'aprobado')
-              ORDER BY p.fecha_pago DESC";
-$pagos_stmt = sqlsrv_query($conn, $pagos_sql);
-$pagos = [];
-while ($row = sqlsrv_fetch_array($pagos_stmt, SQLSRV_FETCH_ASSOC)) {
-    $pagos[] = $row;
+// Obtener pagos pendientes - con manejo de errores
+try {
+    // Primero verificar si la tabla pagos tiene las columnas necesarias
+    $pagos_sql = "SELECT p.*, b.nombre as banco_nombre, b.color as banco_color 
+                  FROM pagos p 
+                  LEFT JOIN bancos b ON p.banco_id = b.id 
+                  WHERE p.estado IN ('pendiente', 'aprobado')
+                  ORDER BY p.fecha_pago DESC";
+    
+    $pagos_stmt = sqlsrv_query($conn, $pagos_sql);
+    if ($pagos_stmt === false) {
+        // Intentar consulta más simple si falla
+        $pagos_sql_simple = "SELECT * FROM pagos WHERE estado IN ('pendiente', 'aprobado') ORDER BY fecha_pago DESC";
+        $pagos_stmt = sqlsrv_query($conn, $pagos_sql_simple);
+        
+        if ($pagos_stmt === false) {
+            throw new Exception("Error en consulta de pagos: " . print_r(sqlsrv_errors(), true));
+        }
+    }
+    
+    while ($row = sqlsrv_fetch_array($pagos_stmt, SQLSRV_FETCH_ASSOC)) {
+        // Asegurar que tenga los campos necesarios
+        if (!isset($row['banco_nombre'])) $row['banco_nombre'] = 'Sin banco';
+        if (!isset($row['banco_color'])) $row['banco_color'] = '#6c757d';
+        if (!isset($row['monto_bs'])) $row['monto_bs'] = $row['monto']; // Asumir que monto_bs es igual a monto si no existe
+        
+        $pagos[] = $row;
+    }
+} catch (Exception $e) {
+    $error = $e->getMessage();
 }
 
-// Obtener movimientos bancarios no conciliados
-$movimientos_sql = "SELECT mb.*, b.nombre as banco_nombre, b.color as banco_color 
-                    FROM movimientos_banco mb 
-                    JOIN bancos b ON mb.banco_id = b.id 
-                    WHERE mb.conciliado = 0 
-                    ORDER BY mb.fecha_movimiento DESC";
-$movimientos_stmt = sqlsrv_query($conn, $movimientos_sql);
-$movimientos = [];
-while ($row = sqlsrv_fetch_array($movimientos_stmt, SQLSRV_FETCH_ASSOC)) {
-    $movimientos[] = $row;
+// Obtener movimientos bancarios no conciliados - con manejo de errores
+try {
+    $movimientos_sql = "SELECT mb.*, b.nombre as banco_nombre, b.color as banco_color 
+                        FROM movimientos_banco mb 
+                        JOIN bancos b ON mb.banco_id = b.id 
+                        WHERE mb.conciliado = 0 
+                        ORDER BY mb.fecha_movimiento DESC";
+    
+    $movimientos_stmt = sqlsrv_query($conn, $movimientos_sql);
+    if ($movimientos_stmt === false) {
+        // La tabla movimientos_banco probablemente no existe
+        $movimientos = []; // Array vacío
+    } else {
+        while ($row = sqlsrv_fetch_array($movimientos_stmt, SQLSRV_FETCH_ASSOC)) {
+            $movimientos[] = $row;
+        }
+    }
+} catch (Exception $e) {
+    $error = $e->getMessage();
+    $movimientos = [];
 }
 
 // Función para extraer referencia
@@ -99,6 +156,33 @@ function extraerReferencia($descripcion) {
         return $matches[1];
     }
     return substr($descripcion, 0, 20); // Limitar longitud
+}
+
+// Función para verificar coincidencias
+function coinciden($pago, $movimiento) {
+    // Si no hay movimientos, no hay coincidencia
+    if (empty($movimiento)) return false;
+    
+    // Comparar referencias (búsqueda flexible)
+    $ref_pago = preg_replace('/[^0-9]/', '', $pago['referencia']);
+    $ref_mov = preg_replace('/[^0-9]/', '', $movimiento['referencia']);
+    
+    $coincide_ref = false;
+    if ($ref_pago === $ref_mov) {
+        $coincide_ref = true;
+    } else if (strlen($ref_pago) >= 6 && strlen($ref_mov) >= 6) {
+        // Coincidencia parcial (últimos 6 dígitos)
+        $coincide_ref = substr($ref_pago, -6) === substr($ref_mov, -6);
+    }
+    
+    // Comparar montos
+    $monto_pago = (isset($pago['moneda']) && $pago['moneda'] == 'USD') ? 
+                 (isset($pago['monto_bs']) ? $pago['monto_bs'] : $pago['monto']) : 
+                 $pago['monto'];
+    
+    $coincide_monto = abs($monto_pago - $movimiento['monto']) < 1.00;
+    
+    return $coincide_ref && $coincide_monto;
 }
 ?>
 
@@ -198,6 +282,21 @@ function extraerReferencia($descripcion) {
         .resumen-conciliados { background: #28a745; }
         .resumen-movimientos { background: #17a2b8; }
         .resumen-coinciden { background: #6f42c1; }
+        .alert {
+            padding: 12px 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        .alert-danger {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .alert-success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
     </style>
 </head>
 <body>
@@ -232,6 +331,13 @@ function extraerReferencia($descripcion) {
             </div>
 
             <div class="content">
+                <?php if (!empty($error)): ?>
+                    <div class="alert alert-danger">
+                        <strong>Error:</strong> <?php echo $error; ?>
+                        <br><small>Es posible que necesites crear las tablas en la base de datos.</small>
+                    </div>
+                <?php endif; ?>
+
                 <?php if (isset($_SESSION['success'])): ?>
                     <div class="alert alert-success"><?php echo $_SESSION['success']; unset($_SESSION['success']); ?></div>
                 <?php endif; ?>
@@ -337,11 +443,11 @@ function extraerReferencia($descripcion) {
                                             <?php endif; ?>
                                         </div>
                                         <div class="detalles">
-                                            Monto: <strong><?php echo $pago['moneda'] == 'USD' ? '$' : 'Bs '; ?>
+                                            Monto: <strong><?php echo (isset($pago['moneda']) && $pago['moneda'] == 'USD') ? '$' : 'Bs '; ?>
                                             <?php echo number_format($pago['monto'], 2); ?></strong> | 
                                             Fecha: <?php echo $fecha_pago; ?> | 
-                                            <span class="banco-badge" style="background: <?php echo $pago['banco_color'] ?: '#6c757d'; ?>">
-                                                <?php echo $pago['banco_nombre'] ?: 'Sin banco'; ?>
+                                            <span class="banco-badge" style="background: <?php echo $pago['banco_color']; ?>">
+                                                <?php echo $pago['banco_nombre']; ?>
                                             </span>
                                         </div>
                                     </div>
@@ -400,6 +506,7 @@ function extraerReferencia($descripcion) {
                     </div>
 
                     <!-- Botones de Acción -->
+                    <?php if (!empty($pagos)): ?>
                     <div class="action-buttons">
                         <button type="submit" name="conciliar" class="btn btn-success btn-lg">
                             <i class="fas fa-check-double"></i> Conciliar Seleccionados 
@@ -414,7 +521,42 @@ function extraerReferencia($descripcion) {
                             </small>
                         </div>
                     </div>
+                    <?php endif; ?>
                 </form>
+
+                <!-- Script para crear tablas si no existen -->
+                <?php if (!empty($error) && strpos($error, 'movimientos_banco') !== false): ?>
+                <div class="alert alert-warning">
+                    <h5>¿Primera vez usando conciliación?</h5>
+                    <p>Parece que las tablas necesarias no existen. Ejecuta estos comandos SQL:</p>
+                    <pre style="background: #f8f9fa; padding: 15px; border-radius: 5px; font-size: 12px;">
+-- Tabla de movimientos bancarios
+CREATE TABLE movimientos_banco (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    banco_id INT NOT NULL,
+    referencia VARCHAR(100),
+    descripcion VARCHAR(255),
+    monto DECIMAL(15,2) NOT NULL,
+    fecha_movimiento DATE NOT NULL,
+    conciliado BIT DEFAULT 0,
+    fecha_conciliacion DATETIME NULL,
+    fecha_registro DATETIME DEFAULT GETDATE()
+);
+
+-- Agregar color a bancos si no existe
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('bancos') AND name = 'color')
+BEGIN
+    ALTER TABLE bancos ADD color VARCHAR(7) DEFAULT '#6c757d';
+END
+
+-- Actualizar bancos con colores
+UPDATE bancos SET color = '#dc3545' WHERE nombre = 'Provincial';
+UPDATE bancos SET color = '#28a745' WHERE nombre = 'Venezuela'; 
+UPDATE bancos SET color = '#17a2b8' WHERE nombre = 'Banesco';
+UPDATE bancos SET color = '#6f42c1' WHERE nombre = 'Mercantil';
+                    </pre>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -451,26 +593,3 @@ function extraerReferencia($descripcion) {
     </script>
 </body>
 </html>
-
-<?php
-// Función para verificar coincidencias
-function coinciden($pago, $movimiento) {
-    // Comparar referencias (búsqueda flexible)
-    $ref_pago = preg_replace('/[^0-9]/', '', $pago['referencia']);
-    $ref_mov = preg_replace('/[^0-9]/', '', $movimiento['referencia']);
-    
-    $coincide_ref = false;
-    if ($ref_pago === $ref_mov) {
-        $coincide_ref = true;
-    } else if (strlen($ref_pago) >= 6 && strlen($ref_mov) >= 6) {
-        // Coincidencia parcial (últimos 6 dígitos)
-        $coincide_ref = substr($ref_pago, -6) === substr($ref_mov, -6);
-    }
-    
-    // Comparar montos
-    $monto_pago = $pago['moneda'] == 'USD' ? $pago['monto_bs'] : $pago['monto'];
-    $coincide_monto = abs($monto_pago - $movimiento['monto']) < 1.00;
-    
-    return $coincide_ref && $coincide_monto;
-}
-?>
