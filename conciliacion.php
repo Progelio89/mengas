@@ -3,84 +3,297 @@ session_start();
 require_once 'config/database.php';
 
 if (!isset($_SESSION['usuario_id']) || ($_SESSION['rol'] != 'admin' && $_SESSION['rol'] != 'consolidador')) {
-    header('Location: index.php');
+    header('Location: login.php');
     exit();
 }
 
-$filtro_estado = $_GET['estado'] ?? 'pendiente';
-$filtro_fecha = $_GET['fecha'] ?? '';
+$usuario_id = $_SESSION['usuario_id'];
+$db = new Database('A');
+$conn = $db->getConnection();
 
-try {
-    $db = new Database('A');
-    
-    // Construir consulta para pagos pendientes de conciliación
-    $sql = "SELECT p.*, u.nombre as usuario_nombre, c.estado_conciliacion, c.referencia_banco
-            FROM pagos p 
-            JOIN usuarios u ON p.usuario_id = u.id 
-            LEFT JOIN conciliacion c ON p.id = c.pago_id
-            WHERE p.estado = 'aprobado'";
-    
-    $params = array();
-    
-    if ($filtro_estado != 'todos') {
-        if ($filtro_estado == 'pendiente') {
-            $sql .= " AND (c.estado_conciliacion IS NULL OR c.estado_conciliacion = 'pendiente')";
-        } else {
-            $sql .= " AND c.estado_conciliacion = ?";
-            $params[] = $filtro_estado;
-        }
-    }
-    
-    if ($filtro_fecha) {
-        $sql .= " AND p.fecha_pago >= ?";
-        $params[] = $filtro_fecha;
-    }
-    
-    $sql .= " ORDER BY p.fecha_pago DESC";
-    
-    $pagos = $db->fetchArray($sql, $params);
-    
-    // Bancos para el formulario
-    $bancos = ['Banesco', 'Mercantil', 'Provincial', 'Venezuela', 'Bancaribe', 'BNC', 'Otro'];
-    
-} catch (Exception $e) {
-    $error = "Error al cargar datos: " . $e->getMessage();
-}
+// Procesar archivo del banco
+$movimientos_banco = [];
+$conciliaciones_automaticas = [];
+$conciliaciones_pendientes = [];
+$archivo_procesado = false;
 
-// Procesar conciliación
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['conciliar'])) {
+if (isset($_POST['procesar_conciliacion'])) {
     try {
-        $pago_id = $_POST['pago_id'];
-        $referencia_banco = $_POST['referencia_banco'];
-        $monto_banco = floatval($_POST['monto_banco']);
-        $fecha_banco = $_POST['fecha_banco'];
-        $estado_conciliacion = $_POST['estado_conciliacion'];
-        $observaciones = $_POST['observaciones'];
-        
-        // Verificar si ya existe conciliación
-        $sql_check = "SELECT id FROM conciliacion WHERE pago_id = ?";
-        $existe = $db->fetchSingle($sql_check, array($pago_id));
-        
-        if ($existe) {
-            // Actualizar
-            $sql = "UPDATE conciliacion SET referencia_banco = ?, monto_banco = ?, fecha_banco = ?, 
-                    estado_conciliacion = ?, observaciones = ?, fecha_conciliacion = GETDATE() 
-                    WHERE pago_id = ?";
-            $params = array($referencia_banco, $monto_banco, $fecha_banco, $estado_conciliacion, $observaciones, $pago_id);
-        } else {
-            // Insertar
-            $sql = "INSERT INTO conciliacion (pago_id, referencia_banco, monto_banco, fecha_banco, 
-                    estado_conciliacion, observaciones) 
-                    VALUES (?, ?, ?, ?, ?, ?)";
-            $params = array($pago_id, $referencia_banco, $monto_banco, $fecha_banco, $estado_conciliacion, $observaciones);
+        // 1. Cargar movimientos bancarios desde Excel
+        if (isset($_FILES['archivo_banco']) && $_FILES['archivo_banco']['error'] == 0) {
+            $banco_seleccionado = $_POST['banco'];
+            require_once 'libs/PHPExcel/Classes/PHPExcel.php';
+            
+            $archivo_tmp = $_FILES['archivo_banco']['tmp_name'];
+            $objPHPExcel = PHPExcel_IOFactory::load($archivo_tmp);
+            $sheet = $objPHPExcel->getActiveSheet();
+            $highestRow = $sheet->getHighestRow();
+            
+            // Determinar formato según el banco seleccionado
+            switch($banco_seleccionado) {
+                case 'provincial':
+                    // Formato Provincial: Fecha | Descripción | Monto | Saldo
+                    for ($row = 2; $row <= $highestRow; $row++) {
+                        $fecha_celda = $sheet->getCell('A' . $row)->getValue();
+                        $descripcion = trim($sheet->getCell('B' . $row)->getValue());
+                        $monto_str = $sheet->getCell('C' . $row)->getValue();
+                        // $saldo = $sheet->getCell('D' . $row)->getValue(); // No necesario para conciliación
+                        
+                        if (!empty($descripcion) && !empty($monto_str)) {
+                            // Convertir fecha
+                            $fecha = '';
+                            if (PHPExcel_Shared_Date::isDateTime($sheet->getCell('A' . $row))) {
+                                $fecha_timestamp = PHPExcel_Shared_Date::ExcelToPHP($fecha_celda);
+                                $fecha = date('Y-m-d', $fecha_timestamp);
+                            } else {
+                                // Intentar parsear fecha en formato dd/mm/yyyy
+                                $fecha = DateTime::createFromFormat('d/m/Y', $fecha_celda);
+                                if ($fecha) {
+                                    $fecha = $fecha->format('Y-m-d');
+                                } else {
+                                    $fecha = date('Y-m-d'); // Fecha actual por defecto
+                                }
+                            }
+                            
+                            // Convertir monto (formato 302,20 a 302.20)
+                            $monto = floatval(str_replace(',', '.', str_replace('.', '', $monto_str)));
+                            
+                            // Extraer referencia de la descripción
+                            $referencia = $this->extraerReferenciaProvincial($descripcion);
+                            
+                            if ($monto > 0) { // Solo ingresos (pagos recibidos)
+                                $movimientos_banco[] = [
+                                    'referencia' => $referencia,
+                                    'descripcion' => $descripcion,
+                                    'monto' => $monto,
+                                    'fecha' => $fecha,
+                                    'banco' => 'Provincial'
+                                ];
+                            }
+                        }
+                    }
+                    break;
+                    
+                case 'venezuela':
+                    // Formato Banco de Venezuela (ajustar según el formato real)
+                    for ($row = 2; $row <= $highestRow; $row++) {
+                        $fecha_celda = $sheet->getCell('A' . $row)->getValue();
+                        $descripcion = trim($sheet->getCell('B' . $row)->getValue());
+                        $monto_str = $sheet->getCell('C' . $row)->getValue();
+                        
+                        if (!empty($descripcion) && !empty($monto_str)) {
+                            // Procesamiento similar al Provincial, ajustar según formato real
+                            $fecha = $this->procesarFechaExcel($fecha_celda);
+                            $monto = floatval(str_replace(',', '.', str_replace('.', '', $monto_str)));
+                            $referencia = $this->extraerReferenciaVenezuela($descripcion);
+                            
+                            if ($monto > 0) {
+                                $movimientos_banco[] = [
+                                    'referencia' => $referencia,
+                                    'descripcion' => $descripcion,
+                                    'monto' => $monto,
+                                    'fecha' => $fecha,
+                                    'banco' => 'Venezuela'
+                                ];
+                            }
+                        }
+                    }
+                    break;
+                    
+                default:
+                    // Formato genérico
+                    for ($row = 2; $row <= $highestRow; $row++) {
+                        $referencia = trim($sheet->getCell('A' . $row)->getValue());
+                        $descripcion = trim($sheet->getCell('B' . $row)->getValue());
+                        $monto = floatval($sheet->getCell('C' . $row)->getValue());
+                        $fecha_celda = $sheet->getCell('D' . $row)->getValue();
+                        
+                        if (!empty($referencia) && $monto > 0) {
+                            $fecha = $this->procesarFechaExcel($fecha_celda);
+                            
+                            $movimientos_banco[] = [
+                                'referencia' => $referencia,
+                                'descripcion' => $descripcion,
+                                'monto' => $monto,
+                                'fecha' => $fecha,
+                                'banco' => $banco_seleccionado
+                            ];
+                        }
+                    }
+            }
+            
+            $archivo_procesado = true;
+            $_SESSION['movimientos_banco'] = $movimientos_banco;
         }
         
-        $stmt = $db->executeQuery($sql, $params);
+        // 2. Obtener movimientos contables del sistema (pagos pendientes)
+        $sql_movimientos_sistema = "SELECT 
+            p.id,
+            p.referencia,
+            p.descripcion,
+            p.monto,
+            p.moneda,
+            p.monto_bs as monto_contable,
+            p.fecha_pago,
+            p.estado,
+            b.nombre as banco_nombre
+            FROM pagos p
+            LEFT JOIN bancos b ON p.banco_id = b.id
+            WHERE p.estado IN ('pendiente', 'aprobado')
+            ORDER BY p.fecha_pago DESC";
         
-        $success = "Conciliación procesada exitosamente!";
+        $stmt_sistema = sqlsrv_query($conn, $sql_movimientos_sistema);
+        $movimientos_sistema = [];
+        while ($row = sqlsrv_fetch_array($stmt_sistema, SQLSRV_FETCH_ASSOC)) {
+            $movimientos_sistema[] = $row;
+        }
+        
+        // 3. Conciliación automática
+        foreach ($movimientos_sistema as $sistema) {
+            foreach ($movimientos_banco as $key => $banco) {
+                // Para Provincial, la referencia está embebida en la descripción
+                $coincide_referencia = $this->compararReferencias($sistema['referencia'], $banco['referencia']);
+                
+                // Calcular monto del sistema en Bs
+                $monto_sistema = $sistema['moneda'] == 'USD' ? $sistema['monto_contable'] : $sistema['monto'];
+                $diferencia_monto = abs($monto_sistema - $banco['monto']);
+                $coincide_monto = $diferencia_monto < 1.00; // Tolerancia de 1.00 Bs por diferencias de decimales
+                
+                if ($coincide_referencia && $coincide_monto) {
+                    $conciliaciones_automaticas[] = [
+                        'sistema' => $sistema,
+                        'banco' => $banco,
+                        'tipo' => 'automática',
+                        'diferencia_monto' => $diferencia_monto
+                    ];
+                    
+                    unset($movimientos_banco[$key]);
+                    break;
+                }
+            }
+        }
+        
+        // 4. Conciliaciones pendientes (sin coincidencia automática)
+        foreach ($movimientos_sistema as $sistema) {
+            $encontrado = false;
+            foreach ($conciliaciones_automaticas as $conciliacion) {
+                if ($conciliacion['sistema']['id'] == $sistema['id']) {
+                    $encontrado = true;
+                    break;
+                }
+            }
+            
+            if (!$encontrado) {
+                $conciliaciones_pendientes[] = [
+                    'sistema' => $sistema,
+                    'banco' => null,
+                    'tipo' => 'pendiente'
+                ];
+            }
+        }
+        
+        // Movimientos bancarios sin conciliar
+        foreach ($movimientos_banco as $banco) {
+            $conciliaciones_pendientes[] = [
+                'sistema' => null,
+                'banco' => $banco,
+                'tipo' => 'banco_sin_match'
+            ];
+        }
         
     } catch (Exception $e) {
-        $error = "Error al procesar conciliación: " . $e->getMessage();
+        $error = "Error en el proceso de conciliación: " . $e->getMessage();
+    }
+}
+
+// Función para extraer referencia del formato Provincial
+function extraerReferenciaProvincial($descripcion) {
+    // Ejemplo: "ABO.DRV0021061576" -> extraer "0021061576"
+    if (preg_match('/DRV(\d+)/', $descripcion, $matches)) {
+        return $matches[1];
+    }
+    
+    // Si no encuentra patrón DRV, buscar números de 8-10 dígitos
+    if (preg_match('/(\d{8,10})/', $descripcion, $matches)) {
+        return $matches[1];
+    }
+    
+    // Si no encuentra números, usar la descripción completa
+    return $descripcion;
+}
+
+// Función para extraer referencia del formato Venezuela
+function extraerReferenciaVenezuela($descripcion) {
+    // Ajustar según el formato real del Banco de Venezuela
+    if (preg_match('/(\d{8,12})/', $descripcion, $matches)) {
+        return $matches[1];
+    }
+    
+    return $descripcion;
+}
+
+// Función para comparar referencias (flexible)
+function compararReferencias($ref_sistema, $ref_banco) {
+    // Limpiar referencias
+    $ref_sistema = preg_replace('/[^0-9]/', '', $ref_sistema);
+    $ref_banco = preg_replace('/[^0-9]/', '', $ref_banco);
+    
+    // Coincidencia exacta
+    if ($ref_sistema === $ref_banco) {
+        return true;
+    }
+    
+    // Coincidencia parcial (últimos 6-8 dígitos)
+    if (strlen($ref_sistema) >= 6 && strlen($ref_banco) >= 6) {
+        $ultimos_sistema = substr($ref_sistema, -6);
+        $ultimos_banco = substr($ref_banco, -6);
+        
+        if ($ultimos_sistema === $ultimos_banco) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+// Función para procesar fechas de Excel
+function procesarFechaExcel($fecha_celda) {
+    if (PHPExcel_Shared_Date::isDateTime($fecha_celda)) {
+        $fecha_timestamp = PHPExcel_Shared_Date::ExcelToPHP($fecha_celda);
+        return date('Y-m-d', $fecha_timestamp);
+    } else {
+        // Intentar parsear fecha en formato dd/mm/yyyy
+        $fecha = DateTime::createFromFormat('d/m/Y', $fecha_celda);
+        if ($fecha) {
+            return $fecha->format('Y-m-d');
+        }
+    }
+    
+    return date('Y-m-d'); // Fecha actual por defecto
+}
+
+// Ejecutar conciliación confirmada
+if (isset($_POST['confirmar_conciliacion'])) {
+    try {
+        $conciliaciones = json_decode($_POST['conciliaciones_data'], true);
+        $contador = 0;
+        
+        foreach ($conciliaciones as $conciliacion) {
+            if ($conciliacion['conciliado'] && $conciliacion['id_sistema']) {
+                // Marcar como conciliado en sistema
+                $sql_update = "UPDATE pagos SET estado = 'conciliado', fecha_conciliacion = GETDATE() WHERE id = ?";
+                sqlsrv_query($conn, $sql_update, array($conciliacion['id_sistema']));
+                
+                $contador++;
+            }
+        }
+        
+        $_SESSION['success'] = "Conciliación completada. $contador registros conciliados.";
+        header('Location: conciliacion.php');
+        exit();
+        
+    } catch (Exception $e) {
+        $error = "Error al confirmar conciliación: " . $e->getMessage();
     }
 }
 ?>
@@ -89,122 +302,100 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['conciliar'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Conciliación - Sistema de Pagos</title>
+    <title>Conciliación Bancaria Automática</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
     <style>
-        .conciliacion-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-        
-        .comparacion-item {
-            display: flex;
-            justify-content: between;
-            align-items: center;
-            padding: 10px;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .comparacion-label {
-            font-weight: 600;
-            color: #555;
-            min-width: 120px;
-        }
-        
-        .comparacion-valor {
-            flex: 1;
-        }
-        
-        .match {
-            color: #27ae60;
-        }
-        
-        .mismatch {
-            color: #e74c3c;
-        }
-        
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-        }
-        
-        .modal-content {
-            background-color: white;
-            margin: 5% auto;
-            padding: 0;
-            border-radius: 8px;
-            width: 90%;
-            max-width: 600px;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-        
-        .modal-header {
-            padding: 20px;
+        .proceso-conciliacion {
             background: #f8f9fa;
-            border-bottom: 1px solid #dee2e6;
-            border-radius: 8px 8px 0 0;
-        }
-        
-        .modal-body {
             padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
         }
-        
-        .close {
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
+        .formatos-banco {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .formato-banco {
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
             cursor: pointer;
+            transition: all 0.3s;
+        }
+        .formato-banco:hover {
+            border-color: #007bff;
+            background: #f8f9fa;
+        }
+        .formato-banco.selected {
+            border-color: #28a745;
+            background: #d4edda;
+        }
+        .formato-banco input[type="radio"] {
+            display: none;
+        }
+        .banco-icon {
+            font-size: 24px;
+            margin-bottom: 10px;
             color: #6c757d;
         }
-        
-        .close:hover {
-            color: #343a40;
+        .formato-banco.selected .banco-icon {
+            color: #28a745;
         }
-        
-        @media (max-width: 768px) {
-            .conciliacion-grid {
-                grid-template-columns: 1fr;
-            }
+        .resumen-conciliacion {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .resumen-item {
+            text-align: center;
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            font-weight: bold;
+        }
+        .resumen-automatico { background: #28a745; }
+        .resumen-pendiente { background: #ffc107; color: black; }
+        .resumen-sin-match { background: #dc3545; }
+        .conciliacion-item {
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .conciliacion-item.automatica {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+        }
+        .item-details {
+            flex: 1;
+        }
+        .referencia-match {
+            background: #28a745;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-left: 10px;
         }
     </style>
-
-         <link href="css/style.css" rel="stylesheet">
-         <link href="css/registrar_pago.css" rel="stylesheet">
-
 </head>
 <body>
     <div class="container">
         <!-- Sidebar -->
         <div class="sidebar">
-            <div class="sidebar-header">
-                <h2><i class="fas fa-money-bill-wave"></i> Sistema Pagos</h2>
-                <small>Base: sistema_pagos</small>
-            </div>
-            <ul class="sidebar-menu">
-                <li><a href="index.php"><i class="fas fa-home"></i> Dashboard</a></li>
-                <li><a href="registrar_pago.php"><i class="fas fa-plus-circle"></i> Registrar Pago</a></li>
-                <li><a href="pagos.php"><i class="fas fa-list"></i> Mis Pagos</a></li>
-                <li><a href="conciliacion.php" class="active"><i class="fas fa-exchange-alt"></i> Conciliación</a></li>
-                <li><a href="usuarios.php"><i class="fas fa-users"></i> Usuarios</a></li>
-                <?php if ($_SESSION['rol'] == 'admin'): ?>
-                <li><a href="configuracion.php"><i class="fas fa-cog"></i> Configuración</a></li>
-                <?php endif; ?>
-                <li><a href="logout.php"><i class="fas fa-sign-out-alt"></i> Cerrar Sesión</a></li>
-            </ul>
+            <!-- ... mismo sidebar ... -->
         </div>
 
         <!-- Main Content -->
         <div class="main-content">
             <div class="top-nav">
-                <h3>Conciliación Bancaria</h3>
+                <h3>Conciliación Bancaria Automática</h3>
                 <div class="user-info">
                     <span>Bienvenido, <?php echo $_SESSION['nombre']; ?></span>
                     <span class="badge"><?php echo ucfirst($_SESSION['rol']); ?></span>
@@ -213,252 +404,208 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['conciliar'])) {
 
             <div class="content">
                 <?php if (isset($error)): ?>
-                <div class="alert alert-danger"><?php echo $error; ?></div>
-                <?php endif; ?>
-                
-                <?php if (isset($success)): ?>
-                <div class="alert alert-success"><?php echo $success; ?></div>
+                    <div class="alert alert-danger"><?php echo $error; ?></div>
                 <?php endif; ?>
 
-                <!-- Filtros -->
-                <div class="filtros">
-                    <form method="GET" action="">
-                        <div class="filtro-grid">
-                            <div class="form-group filtro-group">
-                                <label for="estado">Estado Conciliación</label>
-                                <select id="estado" name="estado">
-                                    <option value="pendiente" <?php echo $filtro_estado == 'pendiente' ? 'selected' : ''; ?>>Pendientes</option>
-                                    <option value="conciliado" <?php echo $filtro_estado == 'conciliado' ? 'selected' : ''; ?>>Conciliados</option>
-                                    <option value="discrepancia" <?php echo $filtro_estado == 'discrepancia' ? 'selected' : ''; ?>>Discrepancias</option>
-                                    <option value="todos" <?php echo $filtro_estado == 'todos' ? 'selected' : ''; ?>>Todos</option>
-                                </select>
-                            </div>
-                            
-                            <div class="form-group filtro-group">
-                                <label for="fecha">Desde Fecha</label>
-                                <input type="date" id="fecha" name="fecha" value="<?php echo $filtro_fecha; ?>">
-                            </div>
-                            
-                            <div class="form-group filtro-group">
-                                <button type="submit" class="btn btn-primary btn-sm">
-                                    <i class="fas fa-filter"></i> Filtrar
-                                </button>
-                                <a href="conciliacion.php" class="btn btn-secondary btn-sm">
-                                    <i class="fas fa-times"></i> Limpiar
-                                </a>
-                            </div>
-                        </div>
-                    </form>
-                </div>
+                <?php if (isset($_SESSION['success'])): ?>
+                    <div class="alert alert-success"><?php echo $_SESSION['success']; unset($_SESSION['success']); ?></div>
+                <?php endif; ?>
 
-                <!-- Lista de Pagos para Conciliar -->
+                <!-- Paso 1: Seleccionar banco y cargar archivo -->
                 <div class="card">
                     <div class="card-header">
-                        <h4>Pagos para Conciliar (<?php echo count($pagos); ?>)</h4>
+                        <h4><i class="fas fa-file-upload"></i> Paso 1: Seleccionar Banco y Cargar Archivo</h4>
                     </div>
                     <div class="card-body">
-                        <div class="table-responsive">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Referencia</th>
-                                        <th>Usuario</th>
-                                        <th>Monto</th>
-                                        <th>Fecha Pago</th>
-                                        <th>Banco Origen</th>
-                                        <th>Estado Conciliación</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php if (count($pagos) > 0): ?>
-                                        <?php foreach ($pagos as $pago): 
-                                            $fecha_pago = $pago['fecha_pago'] instanceof DateTime ? 
-                                                $pago['fecha_pago']->format('d/m/Y') : 
-                                                date('d/m/Y', strtotime($pago['fecha_pago']));
-                                            
-                                            $estado_conciliacion = $pago['estado_conciliacion'] ?: 'pendiente';
-                                        ?>
-                                        <tr>
-                                            <td><?php echo htmlspecialchars($pago['referencia']); ?></td>
-                                            <td><?php echo htmlspecialchars($pago['usuario_nombre']); ?></td>
-                                            <td>
-                                                <?php echo number_format($pago['monto'], 2); ?>
-                                                <?php echo $pago['moneda']; ?>
-                                            </td>
-                                            <td><?php echo $fecha_pago; ?></td>
-                                            <td><?php echo htmlspecialchars($pago['banco_origen']); ?></td>
-                                            <td>
-                                                <span class="badge badge-<?php echo $estado_conciliacion; ?>">
-                                                    <?php echo ucfirst($estado_conciliacion); ?>
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <div class="acciones-pago">
-                                                    <button type="button" class="btn btn-primary btn-icon" 
-                                                            onclick="abrirModalConciliacion(<?php echo htmlspecialchars(json_encode($pago)); ?>)"
-                                                            title="Conciliar">
-                                                        <i class="fas fa-exchange-alt"></i>
-                                                    </button>
-                                                    <a href="ver_pago.php?id=<?php echo $pago['id']; ?>" 
-                                                       class="btn btn-secondary btn-icon" title="Ver detalles">
-                                                        <i class="fas fa-eye"></i>
-                                                    </a>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <?php endforeach; ?>
-                                    <?php else: ?>
-                                        <tr>
-                                            <td colspan="7" style="text-align: center; padding: 40px;">
-                                                <i class="fas fa-check-circle" style="font-size: 48px; color: #bdc3c7; margin-bottom: 15px;"></i>
-                                                <p>No hay pagos pendientes de conciliación</p>
-                                            </td>
-                                        </tr>
-                                    <?php endif; ?>
-                                </tbody>
-                            </table>
-                        </div>
+                        <form method="POST" enctype="multipart/form-data" class="proceso-conciliacion">
+                            <div class="form-group">
+                                <label>Seleccionar Banco:</label>
+                                <div class="formatos-banco">
+                                    <label class="formato-banco" onclick="selectBanco(this)">
+                                        <input type="radio" name="banco" value="provincial" required>
+                                        <div class="banco-icon">
+                                            <i class="fas fa-university"></i>
+                                        </div>
+                                        <strong>Provincial</strong>
+                                        <small>Formato: Fecha | Descripción | Monto | Saldo</small>
+                                    </label>
+                                    
+                                    <label class="formato-banco" onclick="selectBanco(this)">
+                                        <input type="radio" name="banco" value="venezuela">
+                                        <div class="banco-icon">
+                                            <i class="fas fa-university"></i>
+                                        </div>
+                                        <strong>Venezuela</strong>
+                                        <small>Formato específico BDV</small>
+                                    </label>
+                                    
+                                    <label class="formato-banco" onclick="selectBanco(this)">
+                                        <input type="radio" name="banco" value="banesco">
+                                        <div class="banco-icon">
+                                            <i class="fas fa-university"></i>
+                                        </div>
+                                        <strong>Banesco</strong>
+                                        <small>Formato genérico</small>
+                                    </label>
+                                    
+                                    <label class="formato-banco" onclick="selectBanco(this)">
+                                        <input type="radio" name="banco" value="mercantil">
+                                        <div class="banco-icon">
+                                            <i class="fas fa-university"></i>
+                                        </div>
+                                        <strong>Mercantil</strong>
+                                        <small>Formato genérico</small>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="archivo_banco">Seleccionar archivo del banco:</label>
+                                <input type="file" name="archivo_banco" accept=".xlsx,.xls,.csv" required class="form-control">
+                                <small class="form-text text-muted">
+                                    <strong>Formatos soportados:</strong> Excel (.xlsx, .xls) o CSV<br>
+                                    <strong>Provincial:</strong> Las referencias se extraen automáticamente de la descripción
+                                </small>
+                            </div>
+                            
+                            <button type="submit" name="procesar_conciliacion" class="btn btn-primary btn-lg">
+                                <i class="fas fa-cogs"></i> Procesar Conciliación Automática
+                            </button>
+                        </form>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Modal Conciliación -->
-    <div id="modalConciliacion" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4><i class="fas fa-exchange-alt"></i> Procesar Conciliación</h4>
-                <span class="close" onclick="cerrarModalConciliacion()">&times;</span>
-            </div>
-            <div class="modal-body">
-                <form id="formConciliacion" method="POST" action="">
-                    <input type="hidden" name="pago_id" id="pago_id">
-                    <input type="hidden" name="conciliar" value="1">
-                    
-                    <div class="conciliacion-grid">
-                        <!-- Datos del Sistema -->
-                        <div>
-                            <h5>Datos del Sistema</h5>
-                            <div class="info-card">
-                                <div class="comparacion-item">
-                                    <div class="comparacion-label">Referencia:</div>
-                                    <div class="comparacion-valor" id="modal_referencia"></div>
-                                </div>
-                                <div class="comparacion-item">
-                                    <div class="comparacion-label">Monto:</div>
-                                    <div class="comparacion-valor" id="modal_monto"></div>
-                                </div>
-                                <div class="comparacion-item">
-                                    <div class="comparacion-label">Fecha Pago:</div>
-                                    <div class="comparacion-valor" id="modal_fecha_pago"></div>
-                                </div>
-                                <div class="comparacion-item">
-                                    <div class="comparacion-label">Banco Origen:</div>
-                                    <div class="comparacion-valor" id="modal_banco_origen"></div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Datos Bancarios -->
-                        <div>
-                            <h5>Datos del Banco</h5>
-                            <div class="form-group">
-                                <label for="referencia_banco">Referencia Bancaria *</label>
-                                <input type="text" id="referencia_banco" name="referencia_banco" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="monto_banco">Monto Bancario *</label>
-                                <input type="number" id="monto_banco" name="monto_banco" step="0.01" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="fecha_banco">Fecha Bancaria *</label>
-                                <input type="date" id="fecha_banco" name="fecha_banco" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="estado_conciliacion">Estado *</label>
-                                <select id="estado_conciliacion" name="estado_conciliacion" required>
-                                    <option value="conciliado">Conciliado</option>
-                                    <option value="discrepancia">Discrepancia</option>
-                                    <option value="pendiente">Pendiente</option>
-                                </select>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="observaciones">Observaciones</label>
-                                <textarea id="observaciones" name="observaciones" rows="3"></textarea>
-                            </div>
-                        </div>
+                <?php if ($archivo_procesado): ?>
+                
+                <!-- Resumen de Resultados -->
+                <div class="resumen-conciliacion">
+                    <div class="resumen-item resumen-automatico">
+                        <i class="fas fa-check-circle fa-2x"></i><br>
+                        Conciliados Automáticamente<br>
+                        <span style="font-size: 24px;"><?php echo count($conciliaciones_automaticas); ?></span>
                     </div>
-                    
-                    <div style="margin-top: 20px; display: flex; gap: 10px;">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i> Guardar Conciliación
-                        </button>
-                        <button type="button" class="btn btn-secondary" onclick="cerrarModalConciliacion()">
-                            <i class="fas fa-times"></i> Cancelar
-                        </button>
+                    <div class="resumen-item resumen-pendiente">
+                        <i class="fas fa-clock fa-2x"></i><br>
+                        Pendientes de Revisión<br>
+                        <span style="font-size: 24px;"><?php echo count($conciliaciones_pendientes); ?></span>
                     </div>
-                </form>
+                    <div class="resumen-item resumen-sin-match">
+                        <i class="fas fa-exclamation-triangle fa-2x"></i><br>
+                        Movimientos Bancarios<br>
+                        <span style="font-size: 24px;"><?php echo count($movimientos_banco); ?></span>
+                    </div>
+                </div>
+
+                <!-- Paso 2: Resultados de Conciliación -->
+                <div class="card">
+                    <div class="card-header">
+                        <h4><i class="fas fa-list-alt"></i> Paso 2: Resultados de Conciliación Automática</h4>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" id="formConfirmarConciliacion">
+                            <input type="hidden" name="conciliaciones_data" id="conciliacionesData">
+                            
+                            <!-- Conciliaciones Automáticas -->
+                            <?php if (count($conciliaciones_automaticas) > 0): ?>
+                            <h5 style="color: #28a745; margin-bottom: 15px;">
+                                <i class="fas fa-check-circle"></i> 
+                                <?php echo count($conciliaciones_automaticas); ?> Conciliaciones Automáticas Detectadas
+                            </h5>
+                            
+                            <?php foreach ($conciliaciones_automaticas as $index => $conciliacion): 
+                                $fecha_sistema = $conciliacion['sistema']['fecha_pago'] instanceof DateTime ? 
+                                    $conciliacion['sistema']['fecha_pago']->format('d/m/Y') : 
+                                    date('d/m/Y', strtotime($conciliacion['sistema']['fecha_pago']));
+                            ?>
+                            <div class="conciliacion-item automatica">
+                                <div class="item-details">
+                                    <strong>
+                                        Referencia: <?php echo $conciliacion['sistema']['referencia']; ?>
+                                        <span class="referencia-match">✓ COINCIDE</span>
+                                    </strong><br>
+                                    <small>
+                                        <strong>Sistema:</strong> 
+                                        <?php echo $conciliacion['sistema']['moneda'] == 'USD' ? '$' : 'Bs '; ?>
+                                        <?php echo number_format($conciliacion['sistema']['monto'], 2); ?> 
+                                        (<?php echo $conciliacion['sistema']['moneda']; ?>) |
+                                        Fecha: <?php echo $fecha_sistema; ?><br>
+                                        
+                                        <strong>Banco:</strong> 
+                                        Bs <?php echo number_format($conciliacion['banco']['monto'], 2); ?> |
+                                        Fecha: <?php echo date('d/m/Y', strtotime($conciliacion['banco']['fecha'])); ?> |
+                                        Descripción: <?php echo $conciliacion['banco']['descripcion']; ?>
+                                    </small>
+                                </div>
+                                <div class="item-actions">
+                                    <input type="checkbox" 
+                                           name="conciliacion_<?php echo $index; ?>" 
+                                           value="1" 
+                                           checked 
+                                           onchange="actualizarDatosConciliacion()"
+                                           data-sistema-id="<?php echo $conciliacion['sistema']['id']; ?>"
+                                           data-referencia="<?php echo $conciliacion['sistema']['referencia']; ?>">
+                                    <label>Conciliar</label>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                            <?php endif; ?>
+
+                            <!-- Botón de Confirmación -->
+                            <?php if (count($conciliaciones_automaticas) > 0): ?>
+                            <div class="action-buttons" style="text-align: center; margin-top: 30px;">
+                                <button type="submit" name="confirmar_conciliacion" class="btn btn-success btn-lg">
+                                    <i class="fas fa-check-double"></i> Confirmar <?php echo count($conciliaciones_automaticas); ?> Conciliaciones
+                                </button>
+                                <small class="form-text text-muted">
+                                    Los pagos se marcarán como "CONCILIADOS" y no podrán ser modificados
+                                </small>
+                            </div>
+                            <?php else: ?>
+                            <div class="alert alert-warning text-center">
+                                <i class="fas fa-info-circle"></i>
+                                No se encontraron conciliaciones automáticas. Revise manualmente los registros.
+                            </div>
+                            <?php endif; ?>
+                        </form>
+                    </div>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
 
     <script>
-        function abrirModalConciliacion(pago) {
-            document.getElementById('pago_id').value = pago.id;
-            document.getElementById('modal_referencia').textContent = pago.referencia;
-            document.getElementById('modal_monto').textContent = pago.monto + ' ' + pago.moneda;
+        function selectBanco(element) {
+            // Deseleccionar todos
+            document.querySelectorAll('.formato-banco').forEach(el => {
+                el.classList.remove('selected');
+            });
             
-            // Formatear fecha
-            let fechaPago = new Date(pago.fecha_pago);
-            document.getElementById('modal_fecha_pago').textContent = fechaPago.toLocaleDateString('es-ES');
-            
-            document.getElementById('modal_banco_origen').textContent = pago.banco_origen;
-            
-            // Llenar datos existentes si los hay
-            if (pago.referencia_banco) {
-                document.getElementById('referencia_banco').value = pago.referencia_banco;
-            }
-            if (pago.estado_conciliacion) {
-                document.getElementById('estado_conciliacion').value = pago.estado_conciliacion;
-            }
-            
-            // Establecer fecha actual por defecto
-            document.getElementById('fecha_banco').valueAsDate = new Date();
-            
-            document.getElementById('modalConciliacion').style.display = 'block';
+            // Seleccionar actual
+            element.classList.add('selected');
+            element.querySelector('input[type="radio"]').checked = true;
         }
         
-        function cerrarModalConciliacion() {
-            document.getElementById('modalConciliacion').style.display = 'none';
-        }
-        
-        // Cerrar modal al hacer clic fuera
-        window.onclick = function(event) {
-            const modal = document.getElementById('modalConciliacion');
-            if (event.target == modal) {
-                cerrarModalConciliacion();
-            }
-        }
-        
-        // Validar monto bancario vs monto sistema
-        document.getElementById('monto_banco').addEventListener('change', function() {
-            const montoSistema = parseFloat(document.getElementById('modal_monto').textContent.split(' ')[0]);
-            const montoBanco = parseFloat(this.value);
+        function actualizarDatosConciliacion() {
+            const conciliaciones = [];
+            const checkboxes = document.querySelectorAll('input[type="checkbox"][name^="conciliacion_"]');
             
-            if (montoSistema && montoBanco) {
-                const estadoSelect = document.getElementById('estado_conciliacion');
-                if (Math.abs(montoSistema - montoBanco) > 0.01) {
-                    estadoSelect.value = 'discrepancia';
-                } else {
-                    estadoSelect.value = 'conciliado';
+            checkboxes.forEach((checkbox, index) => {
+                if (checkbox.checked) {
+                    conciliaciones.push({
+                        id_sistema: checkbox.getAttribute('data-sistema-id'),
+                        referencia: checkbox.getAttribute('data-referencia'),
+                        conciliado: true
+                    });
                 }
-            }
+            });
+            
+            document.getElementById('conciliacionesData').value = JSON.stringify(conciliaciones);
+        }
+        
+        // Inicializar datos al cargar
+        document.addEventListener('DOMContentLoaded', function() {
+            actualizarDatosConciliacion();
         });
     </script>
 </body>
