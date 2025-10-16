@@ -27,9 +27,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $moneda = $_POST['moneda'];
         $referencia = $_POST['referencia'];
         $fecha_pago = $_POST['fecha_pago'];
-        $fecha_vencimiento = $_POST['fecha_vencimiento'];
         $banco_origen = $_POST['banco_origen'];
         $banco_destino = $_POST['banco_destino'];
+        $cedula_titular = $_POST['cedula_titular'];
+        $telefono_titular = $_POST['telefono_titular'];
         $observaciones = $_POST['observaciones'];
         
         // Calcular monto en BS si es USD
@@ -54,14 +55,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         // Insertar pago
         $sql = "INSERT INTO pagos (usuario_id, monto, moneda, tasa_aplicada, monto_bs, referencia, 
-                                  fecha_pago, fecha_vencimiento, banco_origen, banco_destino, 
-                                  observaciones, captura_url, estado) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')";
+                                  fecha_pago, banco_origen, banco_destino, 
+                                  cedula_titular, telefono_titular, observaciones, captura_url, estado) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')";
         
         $params = array(
             $_SESSION['usuario_id'], $monto, $moneda, $tasa_usd, $monto_bs, $referencia,
-            $fecha_pago, $fecha_vencimiento, $banco_origen, $banco_destino,
-            $observaciones, $captura_url
+            $fecha_pago, $banco_origen, $banco_destino,
+            $cedula_titular, $telefono_titular, $observaciones, $captura_url
         );
         
         $stmt = sqlsrv_query($conn, $sql, $params);
@@ -169,12 +170,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             </div>
 
                             <div class="form-group">
-                                <label for="fecha_vencimiento">Fecha de Vencimiento *</label>
-                                <input type="date" id="fecha_vencimiento" name="fecha_vencimiento" 
-                                       value="<?php echo $_POST['fecha_vencimiento'] ?? date('Y-m-d', strtotime('+30 days')); ?>" required>
-                            </div>
-
-                            <div class="form-group">
                                 <label for="banco_origen">Banco Origen *</label>
                                 <select id="banco_origen" name="banco_origen" required>
                                     <option value="">Seleccionar banco</option>
@@ -200,6 +195,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     <option value="BNC">BNC</option>
                                     <option value="Otro">Otro</option>
                                 </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="cedula_titular">Cédula del Titular *</label>
+                                <input type="text" id="cedula_titular" name="cedula_titular" 
+                                       value="<?php echo $_POST['cedula_titular'] ?? ''; ?>" 
+                                       placeholder="Ej: V12345678" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="telefono_titular">Teléfono del Titular *</label>
+                                <input type="tel" id="telefono_titular" name="telefono_titular" 
+                                       value="<?php echo $_POST['telefono_titular'] ?? ''; ?>" 
+                                       placeholder="Ej: 04121234567" required>
                             </div>
 
                             <div class="form-group form-full">
@@ -263,11 +272,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
 
-        // Validar fechas
-        document.getElementById('fecha_pago').addEventListener('change', function() {
-            const fechaVencimiento = document.getElementById('fecha_vencimiento');
-            if (!fechaVencimiento.value) {
-                fechaVencimiento.min = this.value;
+        // Validar formato de cédula
+        document.getElementById('cedula_titular').addEventListener('blur', function() {
+            const cedula = this.value.trim();
+            if (cedula && !/^[VEJPGvejpg]\d{5,9}$/.test(cedula)) {
+                alert('Formato de cédula inválido. Ejemplos válidos: V12345678, E87654321');
+                this.focus();
+            }
+        });
+
+        // Validar formato de teléfono
+        document.getElementById('telefono_titular').addEventListener('blur', function() {
+            const telefono = this.value.trim();
+            if (telefono && !/^04(14|12|16|24|26)\d{7}$/.test(telefono)) {
+                alert('Formato de teléfono inválido. Debe comenzar con 04 seguido del código de operador (14,12,16,24,26) y 7 dígitos más.');
+                this.focus();
             }
         });
 
