@@ -185,7 +185,6 @@ try {
                                         <th>Monto</th>
                                         <th>Moneda</th>
                                         <th>Fecha Pago</th>
-                                        <th>Fecha Venc.</th>
                                         <th>Banco Origen</th>
                                         <th>Estado</th>
                                         <th>Acciones</th>
@@ -198,9 +197,7 @@ try {
                                                 $pago['fecha_pago']->format('d/m/Y') : 
                                                 date('d/m/Y', strtotime($pago['fecha_pago']));
                                             
-                                            $fecha_vencimiento = $pago['fecha_vencimiento'] instanceof DateTime ? 
-                                                $pago['fecha_vencimiento']->format('d/m/Y') : 
-                                                date('d/m/Y', strtotime($pago['fecha_vencimiento']));
+                                           
                                         ?>
                                         <tr>
                                             <td><?php echo htmlspecialchars($pago['referencia']); ?></td>
@@ -210,7 +207,7 @@ try {
                                             </td>
                                             <td><?php echo $pago['moneda']; ?></td>
                                             <td><?php echo $fecha_pago; ?></td>
-                                            <td><?php echo $fecha_vencimiento; ?></td>
+                                            
                                             <td><?php echo htmlspecialchars($pago['banco_origen']); ?></td>
                                             <td>
                                                 <span class="badge badge-<?php echo $pago['estado']; ?>">

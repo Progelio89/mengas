@@ -207,17 +207,7 @@ try {
                                 </div>
                             </div>
                             
-                            <div class="info-group">
-                                <div class="info-label">Fecha de Vencimiento</div>
-                                <div class="info-value">
-                                    <?php 
-                                        $fecha_vencimiento = $pago['fecha_vencimiento'] instanceof DateTime ? 
-                                            $pago['fecha_vencimiento']->format('d/m/Y') : 
-                                            date('d/m/Y', strtotime($pago['fecha_vencimiento']));
-                                        echo $fecha_vencimiento;
-                                    ?>
-                                </div>
-                            </div>
+                           
                         </div>
                         
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
