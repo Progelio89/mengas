@@ -202,9 +202,17 @@ try {
             <ul class="sidebar-menu">
                 <li><a href="index.php" class="active"><i class="fas fa-home"></i> Dashboard</a></li>
                 <li><a href="registrar_pago.php"><i class="fas fa-plus-circle"></i> Registrar Pago</a></li>
+
+             
+
+
                 <li><a href="pagos.php"><i class="fas fa-list"></i> Mis Pagos</a></li>
                 <?php if ($_SESSION['rol'] == 'admin' || $_SESSION['rol'] == 'consolidador'): ?>
+                <li><a href="importar_banco.php"><i class="fas fa-exchange-alt"></i> Importar Banco</a></li>    
                 <li><a href="conciliacion.php"><i class="fas fa-exchange-alt"></i> Conciliación</a></li>
+                <li><a href="conciliacion_visual.php"><i class="fas fa-exchange-alt"></i> Conciliación VISUAL</a></li>
+
+
                 <li><a href="usuarios.php"><i class="fas fa-users"></i> Usuarios</a></li>
                 <?php endif; ?>
                 <?php if ($_SESSION['rol'] == 'admin'): ?>

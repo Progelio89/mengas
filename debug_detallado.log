@@ -1,0 +1,393 @@
+[2025-10-17 22:17:07] === INPUT JSON COMPLETO ===
+[2025-10-17 22:17:07] {"action":"importar","movimientos":[{"fecha":"2025-10-10","referencia":"52836751749","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":9663.4,"fecha_hora":null},{"fecha":"2025-10-10","referencia":"52836765758","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":13459.45,"fecha_hora":null},{"fecha":"2025-10-10","referencia":"52836835521","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":19329.96,"fecha_hora":null},{"fecha":"2025-10-10","referencia":"52836940997","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":4660.45,"fecha_hora":null},{"fecha":"2025-10-10","referencia":"52836952665","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":5916.9,"fecha_hora":null},{"fecha":"2025-10-10","referencia":"52837126956","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":11175.78,"fecha_hora":null},{"fecha":"2025-10-10","referencia":"52837135556","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":3230.03,"fecha_hora":null},{"fecha":"2025-10-10","referencia":"47795","descripcion":"TRF CR INM 0191 R166533160 OLIVARES GIL ENDE","monto":3508.75,"fecha_hora":null},{"fecha":"2025-10-10","referencia":"52837212951","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":20718,"fecha_hora":null},{"fecha":"2025-10-10","referencia":"52837305067","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":41181,"fecha_hora":null},{"fecha":"2025-10-10","referencia":"41067764","descripcion":"TRF CR INM 0163 J298080175 DUBAI HOTEL-SUITE","monto":18202.47,"fecha_hora":null},{"fecha":"2025-10-10","referencia":"52837449298","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":11962.71,"fecha_hora":null},{"fecha":"2025-10-10","referencia":"52837636007","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":33960.8,"fecha_hora":null},{"fecha":"2025-10-10","referencia":"3564641266","descripcion":"TRANS.CTAS","monto":26628,"fecha_hora":null},{"fecha":"2025-10-10","referencia":"52837680488","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":10372.36,"fecha_hora":null},{"fecha":"2025-10-10","referencia":"12318806","descripcion":"TRF CR INM 0102 J500494505 BUBASEX01","monto":43534.18,"fecha_hora":null},{"fecha":"2025-10-10","referencia":"3564673766","descripcion":"TRANS.CTAS","monto":125981,"fecha_hora":null}],"nombre_archivo":"bancos csb 10102025 2pm.xlsx","id_banco":"2","usuario":"admin"}
+[2025-10-17 22:17:07] === FIN INPUT JSON ===
+[2025-10-17 22:17:07] === INICIANDO IMPORTACIÓN ===
+[2025-10-17 22:17:07] Archivo: bancos csb 10102025 2pm.xlsx, Banco: 2, Usuario: admin
+[2025-10-17 22:17:07] Total movimientos recibidos: 17
+[2025-10-17 22:17:07] DEBUG Movimiento 0 - Estructura completa:
+[2025-10-17 22:17:07]   Fecha: '2025-10-10'
+[2025-10-17 22:17:07]   Referencia: '52836751749'
+[2025-10-17 22:17:07]   Descripción: 'TRANS.CTAS. A TERCEROS BANESCO'
+[2025-10-17 22:17:07]   Monto: '9663.4'
+[2025-10-17 22:17:07]   Tipo: double
+[2025-10-17 22:17:07] DEBUG Movimiento 1 - Estructura completa:
+[2025-10-17 22:17:07]   Fecha: '2025-10-10'
+[2025-10-17 22:17:07]   Referencia: '52836765758'
+[2025-10-17 22:17:07]   Descripción: 'TRANS.CTAS. A TERCEROS BANESCO'
+[2025-10-17 22:17:07]   Monto: '13459.45'
+[2025-10-17 22:17:07]   Tipo: double
+[2025-10-17 22:17:07] DEBUG Movimiento 2 - Estructura completa:
+[2025-10-17 22:17:07]   Fecha: '2025-10-10'
+[2025-10-17 22:17:07]   Referencia: '52836835521'
+[2025-10-17 22:17:07]   Descripción: 'TRANS.CTAS. A TERCEROS BANESCO'
+[2025-10-17 22:17:07]   Monto: '19329.96'
+[2025-10-17 22:17:07]   Tipo: double
+[2025-10-17 22:17:07] ✅ Conexión a BD exitosa
+[2025-10-17 22:17:07] ✅ Transacción iniciada
+[2025-10-17 22:17:07] SQL Archivo: INSERT INTO ArchivosImportados (nombre_archivo, id_banco, total_registros, usuario_importacion, fecha_importacion) 
+                          VALUES (?, ?, ?, ?, GETDATE())
+[2025-10-17 22:17:07] ✅ Archivo insertado en tabla ArchivosImportados
+[2025-10-17 22:17:07] ✅ ID obtenido por MAX: 2
+[2025-10-17 22:17:07] ✅ ID Archivo generado: 2
+[2025-10-17 22:17:07] SQL Movimiento: INSERT INTO MovimientosBancarios 
+                            (id_archivo, id_banco, fecha_movimiento, numero_referencia, descripcion, monto) 
+                            VALUES (?, ?, ?, ?, ?, ?)
+[2025-10-17 22:17:07] --- Procesando movimiento 0 ---
+[2025-10-17 22:17:07] Datos CRUDOS movimiento 0: {"fecha":"2025-10-10","referencia":"52836751749","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":9663.4,"fecha_hora":null}
+[2025-10-17 22:17:07] Validando fecha: '2025-10-10'
+[2025-10-17 22:17:07] Fecha ya en formato correcto: 2025-10-10
+[2025-10-17 22:17:07] Formateando monto: '9663.4' (tipo: double)
+[2025-10-17 22:17:07] Monto numérico directo: 9663.4
+[2025-10-17 22:17:07] Params movimiento 0: Array
+(
+    [0] => 2
+    [1] => 2
+    [2] => 2025-10-10
+    [3] => 52836751749
+    [4] => TRANS.CTAS. A TERCEROS BANESCO
+    [5] => 9663.4
+)
+
+[2025-10-17 22:17:07] ✅ MOVIMIENTO 0 INSERTADO EXITOSAMENTE
+[2025-10-17 22:17:07]    Referencia: 52836751749
+[2025-10-17 22:17:07]    Descripción: TRANS.CTAS. A TERCEROS BANESCO
+[2025-10-17 22:17:07]    Monto: 9663.4
+[2025-10-17 22:17:07]    Fecha: 2025-10-10
+[2025-10-17 22:17:07] --- Procesando movimiento 1 ---
+[2025-10-17 22:17:07] Datos CRUDOS movimiento 1: {"fecha":"2025-10-10","referencia":"52836765758","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":13459.45,"fecha_hora":null}
+[2025-10-17 22:17:07] Validando fecha: '2025-10-10'
+[2025-10-17 22:17:07] Fecha ya en formato correcto: 2025-10-10
+[2025-10-17 22:17:07] Formateando monto: '13459.45' (tipo: double)
+[2025-10-17 22:17:07] Monto numérico directo: 13459.45
+[2025-10-17 22:17:07] Params movimiento 1: Array
+(
+    [0] => 2
+    [1] => 2
+    [2] => 2025-10-10
+    [3] => 52836765758
+    [4] => TRANS.CTAS. A TERCEROS BANESCO
+    [5] => 13459.45
+)
+
+[2025-10-17 22:17:07] ✅ MOVIMIENTO 1 INSERTADO EXITOSAMENTE
+[2025-10-17 22:17:07]    Referencia: 52836765758
+[2025-10-17 22:17:07]    Descripción: TRANS.CTAS. A TERCEROS BANESCO
+[2025-10-17 22:17:07]    Monto: 13459.45
+[2025-10-17 22:17:07]    Fecha: 2025-10-10
+[2025-10-17 22:17:07] --- Procesando movimiento 2 ---
+[2025-10-17 22:17:07] Datos CRUDOS movimiento 2: {"fecha":"2025-10-10","referencia":"52836835521","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":19329.96,"fecha_hora":null}
+[2025-10-17 22:17:07] Validando fecha: '2025-10-10'
+[2025-10-17 22:17:07] Fecha ya en formato correcto: 2025-10-10
+[2025-10-17 22:17:07] Formateando monto: '19329.96' (tipo: double)
+[2025-10-17 22:17:07] Monto numérico directo: 19329.96
+[2025-10-17 22:17:07] Params movimiento 2: Array
+(
+    [0] => 2
+    [1] => 2
+    [2] => 2025-10-10
+    [3] => 52836835521
+    [4] => TRANS.CTAS. A TERCEROS BANESCO
+    [5] => 19329.96
+)
+
+[2025-10-17 22:17:07] ✅ MOVIMIENTO 2 INSERTADO EXITOSAMENTE
+[2025-10-17 22:17:07]    Referencia: 52836835521
+[2025-10-17 22:17:07]    Descripción: TRANS.CTAS. A TERCEROS BANESCO
+[2025-10-17 22:17:07]    Monto: 19329.96
+[2025-10-17 22:17:07]    Fecha: 2025-10-10
+[2025-10-17 22:17:07] --- Procesando movimiento 3 ---
+[2025-10-17 22:17:07] Datos CRUDOS movimiento 3: {"fecha":"2025-10-10","referencia":"52836940997","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":4660.45,"fecha_hora":null}
+[2025-10-17 22:17:07] Validando fecha: '2025-10-10'
+[2025-10-17 22:17:07] Fecha ya en formato correcto: 2025-10-10
+[2025-10-17 22:17:07] Formateando monto: '4660.45' (tipo: double)
+[2025-10-17 22:17:07] Monto numérico directo: 4660.45
+[2025-10-17 22:17:07] Params movimiento 3: Array
+(
+    [0] => 2
+    [1] => 2
+    [2] => 2025-10-10
+    [3] => 52836940997
+    [4] => TRANS.CTAS. A TERCEROS BANESCO
+    [5] => 4660.45
+)
+
+[2025-10-17 22:17:07] ✅ MOVIMIENTO 3 INSERTADO EXITOSAMENTE
+[2025-10-17 22:17:07]    Referencia: 52836940997
+[2025-10-17 22:17:07]    Descripción: TRANS.CTAS. A TERCEROS BANESCO
+[2025-10-17 22:17:07]    Monto: 4660.45
+[2025-10-17 22:17:07]    Fecha: 2025-10-10
+[2025-10-17 22:17:07] --- Procesando movimiento 4 ---
+[2025-10-17 22:17:07] Datos CRUDOS movimiento 4: {"fecha":"2025-10-10","referencia":"52836952665","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":5916.9,"fecha_hora":null}
+[2025-10-17 22:17:07] Validando fecha: '2025-10-10'
+[2025-10-17 22:17:07] Fecha ya en formato correcto: 2025-10-10
+[2025-10-17 22:17:07] Formateando monto: '5916.9' (tipo: double)
+[2025-10-17 22:17:07] Monto numérico directo: 5916.9
+[2025-10-17 22:17:07] Params movimiento 4: Array
+(
+    [0] => 2
+    [1] => 2
+    [2] => 2025-10-10
+    [3] => 52836952665
+    [4] => TRANS.CTAS. A TERCEROS BANESCO
+    [5] => 5916.9
+)
+
+[2025-10-17 22:17:07] ✅ MOVIMIENTO 4 INSERTADO EXITOSAMENTE
+[2025-10-17 22:17:07]    Referencia: 52836952665
+[2025-10-17 22:17:07]    Descripción: TRANS.CTAS. A TERCEROS BANESCO
+[2025-10-17 22:17:07]    Monto: 5916.9
+[2025-10-17 22:17:07]    Fecha: 2025-10-10
+[2025-10-17 22:17:07] --- Procesando movimiento 5 ---
+[2025-10-17 22:17:07] Datos CRUDOS movimiento 5: {"fecha":"2025-10-10","referencia":"52837126956","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":11175.78,"fecha_hora":null}
+[2025-10-17 22:17:07] Validando fecha: '2025-10-10'
+[2025-10-17 22:17:07] Fecha ya en formato correcto: 2025-10-10
+[2025-10-17 22:17:07] Formateando monto: '11175.78' (tipo: double)
+[2025-10-17 22:17:07] Monto numérico directo: 11175.78
+[2025-10-17 22:17:07] Params movimiento 5: Array
+(
+    [0] => 2
+    [1] => 2
+    [2] => 2025-10-10
+    [3] => 52837126956
+    [4] => TRANS.CTAS. A TERCEROS BANESCO
+    [5] => 11175.78
+)
+
+[2025-10-17 22:17:07] ✅ MOVIMIENTO 5 INSERTADO EXITOSAMENTE
+[2025-10-17 22:17:07]    Referencia: 52837126956
+[2025-10-17 22:17:07]    Descripción: TRANS.CTAS. A TERCEROS BANESCO
+[2025-10-17 22:17:07]    Monto: 11175.78
+[2025-10-17 22:17:07]    Fecha: 2025-10-10
+[2025-10-17 22:17:07] --- Procesando movimiento 6 ---
+[2025-10-17 22:17:07] Datos CRUDOS movimiento 6: {"fecha":"2025-10-10","referencia":"52837135556","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":3230.03,"fecha_hora":null}
+[2025-10-17 22:17:07] Validando fecha: '2025-10-10'
+[2025-10-17 22:17:07] Fecha ya en formato correcto: 2025-10-10
+[2025-10-17 22:17:07] Formateando monto: '3230.03' (tipo: double)
+[2025-10-17 22:17:07] Monto numérico directo: 3230.03
+[2025-10-17 22:17:07] Params movimiento 6: Array
+(
+    [0] => 2
+    [1] => 2
+    [2] => 2025-10-10
+    [3] => 52837135556
+    [4] => TRANS.CTAS. A TERCEROS BANESCO
+    [5] => 3230.03
+)
+
+[2025-10-17 22:17:07] ✅ MOVIMIENTO 6 INSERTADO EXITOSAMENTE
+[2025-10-17 22:17:07]    Referencia: 52837135556
+[2025-10-17 22:17:07]    Descripción: TRANS.CTAS. A TERCEROS BANESCO
+[2025-10-17 22:17:07]    Monto: 3230.03
+[2025-10-17 22:17:07]    Fecha: 2025-10-10
+[2025-10-17 22:17:07] --- Procesando movimiento 7 ---
+[2025-10-17 22:17:07] Datos CRUDOS movimiento 7: {"fecha":"2025-10-10","referencia":"47795","descripcion":"TRF CR INM 0191 R166533160 OLIVARES GIL ENDE","monto":3508.75,"fecha_hora":null}
+[2025-10-17 22:17:07] Validando fecha: '2025-10-10'
+[2025-10-17 22:17:07] Fecha ya en formato correcto: 2025-10-10
+[2025-10-17 22:17:07] Formateando monto: '3508.75' (tipo: double)
+[2025-10-17 22:17:07] Monto numérico directo: 3508.75
+[2025-10-17 22:17:07] Params movimiento 7: Array
+(
+    [0] => 2
+    [1] => 2
+    [2] => 2025-10-10
+    [3] => 47795
+    [4] => TRF CR INM 0191 R166533160 OLIVARES GIL ENDE
+    [5] => 3508.75
+)
+
+[2025-10-17 22:17:07] ✅ MOVIMIENTO 7 INSERTADO EXITOSAMENTE
+[2025-10-17 22:17:07]    Referencia: 47795
+[2025-10-17 22:17:07]    Descripción: TRF CR INM 0191 R166533160 OLIVARES GIL ENDE
+[2025-10-17 22:17:07]    Monto: 3508.75
+[2025-10-17 22:17:07]    Fecha: 2025-10-10
+[2025-10-17 22:17:07] --- Procesando movimiento 8 ---
+[2025-10-17 22:17:07] Datos CRUDOS movimiento 8: {"fecha":"2025-10-10","referencia":"52837212951","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":20718,"fecha_hora":null}
+[2025-10-17 22:17:07] Validando fecha: '2025-10-10'
+[2025-10-17 22:17:07] Fecha ya en formato correcto: 2025-10-10
+[2025-10-17 22:17:07] Formateando monto: '20718' (tipo: integer)
+[2025-10-17 22:17:07] Monto numérico directo: 20718
+[2025-10-17 22:17:07] Params movimiento 8: Array
+(
+    [0] => 2
+    [1] => 2
+    [2] => 2025-10-10
+    [3] => 52837212951
+    [4] => TRANS.CTAS. A TERCEROS BANESCO
+    [5] => 20718
+)
+
+[2025-10-17 22:17:07] ✅ MOVIMIENTO 8 INSERTADO EXITOSAMENTE
+[2025-10-17 22:17:07]    Referencia: 52837212951
+[2025-10-17 22:17:07]    Descripción: TRANS.CTAS. A TERCEROS BANESCO
+[2025-10-17 22:17:07]    Monto: 20718
+[2025-10-17 22:17:07]    Fecha: 2025-10-10
+[2025-10-17 22:17:07] --- Procesando movimiento 9 ---
+[2025-10-17 22:17:07] Datos CRUDOS movimiento 9: {"fecha":"2025-10-10","referencia":"52837305067","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":41181,"fecha_hora":null}
+[2025-10-17 22:17:07] Validando fecha: '2025-10-10'
+[2025-10-17 22:17:07] Fecha ya en formato correcto: 2025-10-10
+[2025-10-17 22:17:07] Formateando monto: '41181' (tipo: integer)
+[2025-10-17 22:17:07] Monto numérico directo: 41181
+[2025-10-17 22:17:07] Params movimiento 9: Array
+(
+    [0] => 2
+    [1] => 2
+    [2] => 2025-10-10
+    [3] => 52837305067
+    [4] => TRANS.CTAS. A TERCEROS BANESCO
+    [5] => 41181
+)
+
+[2025-10-17 22:17:07] ✅ MOVIMIENTO 9 INSERTADO EXITOSAMENTE
+[2025-10-17 22:17:07]    Referencia: 52837305067
+[2025-10-17 22:17:07]    Descripción: TRANS.CTAS. A TERCEROS BANESCO
+[2025-10-17 22:17:07]    Monto: 41181
+[2025-10-17 22:17:07]    Fecha: 2025-10-10
+[2025-10-17 22:17:07] --- Procesando movimiento 10 ---
+[2025-10-17 22:17:07] Datos CRUDOS movimiento 10: {"fecha":"2025-10-10","referencia":"41067764","descripcion":"TRF CR INM 0163 J298080175 DUBAI HOTEL-SUITE","monto":18202.47,"fecha_hora":null}
+[2025-10-17 22:17:07] Validando fecha: '2025-10-10'
+[2025-10-17 22:17:07] Fecha ya en formato correcto: 2025-10-10
+[2025-10-17 22:17:07] Formateando monto: '18202.47' (tipo: double)
+[2025-10-17 22:17:07] Monto numérico directo: 18202.47
+[2025-10-17 22:17:07] Params movimiento 10: Array
+(
+    [0] => 2
+    [1] => 2
+    [2] => 2025-10-10
+    [3] => 41067764
+    [4] => TRF CR INM 0163 J298080175 DUBAI HOTEL-SUITE
+    [5] => 18202.47
+)
+
+[2025-10-17 22:17:07] ✅ MOVIMIENTO 10 INSERTADO EXITOSAMENTE
+[2025-10-17 22:17:07]    Referencia: 41067764
+[2025-10-17 22:17:07]    Descripción: TRF CR INM 0163 J298080175 DUBAI HOTEL-SUITE
+[2025-10-17 22:17:07]    Monto: 18202.47
+[2025-10-17 22:17:07]    Fecha: 2025-10-10
+[2025-10-17 22:17:07] --- Procesando movimiento 11 ---
+[2025-10-17 22:17:07] Datos CRUDOS movimiento 11: {"fecha":"2025-10-10","referencia":"52837449298","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":11962.71,"fecha_hora":null}
+[2025-10-17 22:17:07] Validando fecha: '2025-10-10'
+[2025-10-17 22:17:07] Fecha ya en formato correcto: 2025-10-10
+[2025-10-17 22:17:07] Formateando monto: '11962.71' (tipo: double)
+[2025-10-17 22:17:07] Monto numérico directo: 11962.71
+[2025-10-17 22:17:07] Params movimiento 11: Array
+(
+    [0] => 2
+    [1] => 2
+    [2] => 2025-10-10
+    [3] => 52837449298
+    [4] => TRANS.CTAS. A TERCEROS BANESCO
+    [5] => 11962.71
+)
+
+[2025-10-17 22:17:07] ✅ MOVIMIENTO 11 INSERTADO EXITOSAMENTE
+[2025-10-17 22:17:07]    Referencia: 52837449298
+[2025-10-17 22:17:07]    Descripción: TRANS.CTAS. A TERCEROS BANESCO
+[2025-10-17 22:17:07]    Monto: 11962.71
+[2025-10-17 22:17:07]    Fecha: 2025-10-10
+[2025-10-17 22:17:07] --- Procesando movimiento 12 ---
+[2025-10-17 22:17:07] Datos CRUDOS movimiento 12: {"fecha":"2025-10-10","referencia":"52837636007","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":33960.8,"fecha_hora":null}
+[2025-10-17 22:17:07] Validando fecha: '2025-10-10'
+[2025-10-17 22:17:07] Fecha ya en formato correcto: 2025-10-10
+[2025-10-17 22:17:07] Formateando monto: '33960.8' (tipo: double)
+[2025-10-17 22:17:07] Monto numérico directo: 33960.8
+[2025-10-17 22:17:07] Params movimiento 12: Array
+(
+    [0] => 2
+    [1] => 2
+    [2] => 2025-10-10
+    [3] => 52837636007
+    [4] => TRANS.CTAS. A TERCEROS BANESCO
+    [5] => 33960.8
+)
+
+[2025-10-17 22:17:07] ✅ MOVIMIENTO 12 INSERTADO EXITOSAMENTE
+[2025-10-17 22:17:07]    Referencia: 52837636007
+[2025-10-17 22:17:07]    Descripción: TRANS.CTAS. A TERCEROS BANESCO
+[2025-10-17 22:17:07]    Monto: 33960.8
+[2025-10-17 22:17:07]    Fecha: 2025-10-10
+[2025-10-17 22:17:07] --- Procesando movimiento 13 ---
+[2025-10-17 22:17:07] Datos CRUDOS movimiento 13: {"fecha":"2025-10-10","referencia":"3564641266","descripcion":"TRANS.CTAS","monto":26628,"fecha_hora":null}
+[2025-10-17 22:17:07] Validando fecha: '2025-10-10'
+[2025-10-17 22:17:07] Fecha ya en formato correcto: 2025-10-10
+[2025-10-17 22:17:07] Formateando monto: '26628' (tipo: integer)
+[2025-10-17 22:17:07] Monto numérico directo: 26628
+[2025-10-17 22:17:07] Params movimiento 13: Array
+(
+    [0] => 2
+    [1] => 2
+    [2] => 2025-10-10
+    [3] => 3564641266
+    [4] => TRANS.CTAS
+    [5] => 26628
+)
+
+[2025-10-17 22:17:07] ✅ MOVIMIENTO 13 INSERTADO EXITOSAMENTE
+[2025-10-17 22:17:07]    Referencia: 3564641266
+[2025-10-17 22:17:07]    Descripción: TRANS.CTAS
+[2025-10-17 22:17:07]    Monto: 26628
+[2025-10-17 22:17:07]    Fecha: 2025-10-10
+[2025-10-17 22:17:07] --- Procesando movimiento 14 ---
+[2025-10-17 22:17:07] Datos CRUDOS movimiento 14: {"fecha":"2025-10-10","referencia":"52837680488","descripcion":"TRANS.CTAS. A TERCEROS BANESCO","monto":10372.36,"fecha_hora":null}
+[2025-10-17 22:17:07] Validando fecha: '2025-10-10'
+[2025-10-17 22:17:07] Fecha ya en formato correcto: 2025-10-10
+[2025-10-17 22:17:07] Formateando monto: '10372.36' (tipo: double)
+[2025-10-17 22:17:07] Monto numérico directo: 10372.36
+[2025-10-17 22:17:07] Params movimiento 14: Array
+(
+    [0] => 2
+    [1] => 2
+    [2] => 2025-10-10
+    [3] => 52837680488
+    [4] => TRANS.CTAS. A TERCEROS BANESCO
+    [5] => 10372.36
+)
+
+[2025-10-17 22:17:07] ✅ MOVIMIENTO 14 INSERTADO EXITOSAMENTE
+[2025-10-17 22:17:07]    Referencia: 52837680488
+[2025-10-17 22:17:07]    Descripción: TRANS.CTAS. A TERCEROS BANESCO
+[2025-10-17 22:17:07]    Monto: 10372.36
+[2025-10-17 22:17:07]    Fecha: 2025-10-10
+[2025-10-17 22:17:07] --- Procesando movimiento 15 ---
+[2025-10-17 22:17:07] Datos CRUDOS movimiento 15: {"fecha":"2025-10-10","referencia":"12318806","descripcion":"TRF CR INM 0102 J500494505 BUBASEX01","monto":43534.18,"fecha_hora":null}
+[2025-10-17 22:17:07] Validando fecha: '2025-10-10'
+[2025-10-17 22:17:07] Fecha ya en formato correcto: 2025-10-10
+[2025-10-17 22:17:07] Formateando monto: '43534.18' (tipo: double)
+[2025-10-17 22:17:07] Monto numérico directo: 43534.18
+[2025-10-17 22:17:07] Params movimiento 15: Array
+(
+    [0] => 2
+    [1] => 2
+    [2] => 2025-10-10
+    [3] => 12318806
+    [4] => TRF CR INM 0102 J500494505 BUBASEX01
+    [5] => 43534.18
+)
+
+[2025-10-17 22:17:07] ✅ MOVIMIENTO 15 INSERTADO EXITOSAMENTE
+[2025-10-17 22:17:07]    Referencia: 12318806
+[2025-10-17 22:17:07]    Descripción: TRF CR INM 0102 J500494505 BUBASEX01
+[2025-10-17 22:17:07]    Monto: 43534.18
+[2025-10-17 22:17:07]    Fecha: 2025-10-10
+[2025-10-17 22:17:07] --- Procesando movimiento 16 ---
+[2025-10-17 22:17:07] Datos CRUDOS movimiento 16: {"fecha":"2025-10-10","referencia":"3564673766","descripcion":"TRANS.CTAS","monto":125981,"fecha_hora":null}
+[2025-10-17 22:17:07] Validando fecha: '2025-10-10'
+[2025-10-17 22:17:07] Fecha ya en formato correcto: 2025-10-10
+[2025-10-17 22:17:07] Formateando monto: '125981' (tipo: integer)
+[2025-10-17 22:17:07] Monto numérico directo: 125981
+[2025-10-17 22:17:07] Params movimiento 16: Array
+(
+    [0] => 2
+    [1] => 2
+    [2] => 2025-10-10
+    [3] => 3564673766
+    [4] => TRANS.CTAS
+    [5] => 125981
+)
+
+[2025-10-17 22:17:07] ✅ MOVIMIENTO 16 INSERTADO EXITOSAMENTE
+[2025-10-17 22:17:07]    Referencia: 3564673766
+[2025-10-17 22:17:07]    Descripción: TRANS.CTAS
+[2025-10-17 22:17:07]    Monto: 125981
+[2025-10-17 22:17:07]    Fecha: 2025-10-10
+[2025-10-17 22:17:07] === IMPORTACIÓN COMPLETADA ===
+[2025-10-17 22:17:07] Insertados: 17, Fallidos: 0
