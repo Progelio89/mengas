@@ -32,53 +32,122 @@ function cargarBancos($conn, &$bancos) {
     }
 }
 
-// VERIFICAR SI EL MES ESTÁ CERRADO
+// VERIFICAR SI EL MES ESTÁ CERRADO - FUNCIÓN CORREGIDA
 function mesCerrado($conn, $fecha) {
-    $mes = date('Y-m-01', strtotime($fecha));
+    // Convertir la fecha al primer día del mes en formato YYYY-MM-DD
+    if ($fecha instanceof DateTime) {
+        $mes = $fecha->format('Y-m-01');
+    } else {
+        $timestamp = strtotime($fecha);
+        if ($timestamp === false) {
+            return false;
+        }
+        $mes = date('Y-m-01', $timestamp);
+    }
+    
     $sql = "SELECT COUNT(*) as count FROM cierres_mes WHERE mes = ? AND cerrado = 1";
-    $stmt = sqlsrv_query($conn, $sql, array($mes));
-    if ($stmt !== false) {
-        $row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC);
+    $params = array($mes);
+    $stmt = sqlsrv_query($conn, $sql, $params);
+    
+    if ($stmt === false) {
+        return false;
+    }
+    
+    if ($row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
         return $row['count'] > 0;
     }
+    
     return false;
 }
 
-// FUNCIÓN PARA CERRAR MES
+// FUNCIÓN PARA CERRAR MES - MEJORADA
 function cerrarMes($conn, $mes, $usuario_id) {
+    // El input viene como YYYY-MM, convertirlo a YYYY-MM-01
+    if (!preg_match('/^\d{4}-\d{2}$/', $mes)) {
+        return "formato_invalido";
+    }
+    
+    $mes_completo = $mes . '-01';
+    
+    // Verificar si el mes ya está cerrado
+    if (mesCerrado($conn, $mes_completo)) {
+        return "mes_ya_cerrado";
+    }
+    
+    // Verificar que no haya registros pendientes para ese mes
+    $sql_pendientes = "SELECT COUNT(*) as pendientes 
+                      FROM pagos 
+                      WHERE estado IN ('pendiente', 'aprobado') 
+                      AND id_movimiento_conciliado IS NULL
+                      AND YEAR(fecha_pago) = YEAR(?) 
+                      AND MONTH(fecha_pago) = MONTH(?)";
+    
+    $stmt_pendientes = sqlsrv_query($conn, $sql_pendientes, array($mes_completo, $mes_completo));
+    if ($stmt_pendientes !== false && $row = sqlsrv_fetch_array($stmt_pendientes, SQLSRV_FETCH_ASSOC)) {
+        if ($row['pendientes'] > 0) {
+            return "hay_pendientes";
+        }
+    }
+    
     if (sqlsrv_begin_transaction($conn) === false) {
-        return false;
+        return "error_transaccion";
     }
     
     try {
         $sql = "INSERT INTO cierres_mes (mes, cerrado, fecha_cierre, usuario_id) 
                 VALUES (?, 1, GETDATE(), ?)";
-        $stmt = sqlsrv_query($conn, $sql, array($mes, $usuario_id));
-        if ($stmt === false) return false;
+        $params = array($mes_completo, $usuario_id);
+        $stmt = sqlsrv_query($conn, $sql, $params);
+        
+        if ($stmt === false) {
+            sqlsrv_rollback($conn);
+            return "error_insercion";
+        }
         
         sqlsrv_commit($conn);
         return true;
         
     } catch (Exception $e) {
         sqlsrv_rollback($conn);
-        return false;
+        return "error_excepcion";
     }
 }
 
-// FUNCIÓN PARA ABRIR MES
+// FUNCIÓN PARA ABRIR MES - MEJORADA
 function abrirMes($conn, $mes) {
+    // El input viene como YYYY-MM, convertirlo a YYYY-MM-01
+    if (!preg_match('/^\d{4}-\d{2}$/', $mes)) {
+        return "formato_invalido";
+    }
+    
+    $mes_completo = $mes . '-01';
+    
     $sql = "DELETE FROM cierres_mes WHERE mes = ?";
-    $stmt = sqlsrv_query($conn, $sql, array($mes));
-    return $stmt !== false;
+    $stmt = sqlsrv_query($conn, $sql, array($mes_completo));
+    
+    if ($stmt === false) {
+        return "error_eliminacion";
+    }
+    
+    return true;
 }
 
 // FUNCIÓN PARA CONCILIAR
 function conciliarRegistros($conn, $pago_id, $movimiento_id, $usuario_id) {
-    // Verificar si el mes está cerrado
-    $sql_fecha = "SELECT fecha_pago FROM pagos WHERE id = ?";
-    $stmt_fecha = sqlsrv_query($conn, $sql_fecha, array($pago_id));
-    if ($stmt_fecha !== false && $row = sqlsrv_fetch_array($stmt_fecha, SQLSRV_FETCH_ASSOC)) {
+    // Verificar si el mes está cerrado para el pago
+    $sql_fecha_pago = "SELECT fecha_pago FROM pagos WHERE id = ?";
+    $stmt_fecha_pago = sqlsrv_query($conn, $sql_fecha_pago, array($pago_id));
+    if ($stmt_fecha_pago !== false && $row = sqlsrv_fetch_array($stmt_fecha_pago, SQLSRV_FETCH_ASSOC)) {
         if (mesCerrado($conn, $row['fecha_pago'])) {
+            return "mes_cerrado";
+        }
+    }
+    
+    // Verificar si el mes está cerrado para el movimiento
+    $sql_fecha_mov = "SELECT fecha_movimiento FROM MovimientosBancarios WHERE id_movimiento = ?";
+    $stmt_fecha_mov = sqlsrv_query($conn, $sql_fecha_mov, array($movimiento_id));
+    if ($stmt_fecha_mov !== false && $row = sqlsrv_fetch_array($stmt_fecha_mov, SQLSRV_FETCH_ASSOC)) {
+        if (mesCerrado($conn, $row['fecha_movimiento'])) {
             return "mes_cerrado";
         }
     }
@@ -115,10 +184,10 @@ function conciliarRegistros($conn, $pago_id, $movimiento_id, $usuario_id) {
 
 // FUNCIÓN PARA DESCONCILIAR
 function desconciliarRegistros($conn, $pago_id, $movimiento_id) {
-    // Verificar si el mes está cerrado
-    $sql_fecha = "SELECT fecha_pago FROM pagos WHERE id = ?";
-    $stmt_fecha = sqlsrv_query($conn, $sql_fecha, array($pago_id));
-    if ($stmt_fecha !== false && $row = sqlsrv_fetch_array($stmt_fecha, SQLSRV_FETCH_ASSOC)) {
+    // Verificar si el mes está cerrado para el pago
+    $sql_fecha_pago = "SELECT fecha_pago FROM pagos WHERE id = ?";
+    $stmt_fecha_pago = sqlsrv_query($conn, $sql_fecha_pago, array($pago_id));
+    if ($stmt_fecha_pago !== false && $row = sqlsrv_fetch_array($stmt_fecha_pago, SQLSRV_FETCH_ASSOC)) {
         if (mesCerrado($conn, $row['fecha_pago'])) {
             return "mes_cerrado";
         }
@@ -282,23 +351,54 @@ if ($_POST) {
         }
     }
     
-    // CIERRE DE MES
+    // CIERRE DE MES - PROCESAMIENTO MEJORADO
     if (isset($_POST['cerrar_mes'])) {
         $mes = $_POST['mes'];
-        if (cerrarMes($conn, $mes, $usuario_id)) {
-            $success = "Mes cerrado exitosamente";
+        $resultado = cerrarMes($conn, $mes, $usuario_id);
+        
+        if ($resultado === true) {
+            $success = "Mes " . date('F Y', strtotime($mes . '-01')) . " cerrado exitosamente";
         } else {
-            $error = "Error al cerrar el mes";
+            switch ($resultado) {
+                case "formato_invalido":
+                    $error = "Formato de mes inválido. Use YYYY-MM";
+                    break;
+                case "mes_ya_cerrado":
+                    $error = "El mes " . date('F Y', strtotime($mes . '-01')) . " ya está cerrado";
+                    break;
+                case "hay_pendientes":
+                    $error = "No se puede cerrar el mes " . date('F Y', strtotime($mes . '-01')) . ": Hay registros pendientes de conciliar";
+                    break;
+                case "error_transaccion":
+                    $error = "Error al iniciar la transacción de cierre de mes";
+                    break;
+                case "error_insercion":
+                    $error = "Error al guardar el cierre de mes en la base de datos";
+                    break;
+                default:
+                    $error = "Error desconocido al cerrar el mes";
+            }
         }
     }
     
-    // APERTURA DE MES
+    // APERTURA DE MES - PROCESAMIENTO MEJORADO
     if (isset($_POST['abrir_mes'])) {
         $mes = $_POST['mes'];
-        if (abrirMes($conn, $mes)) {
-            $success = "Mes abierto exitosamente";
+        $resultado = abrirMes($conn, $mes);
+        
+        if ($resultado === true) {
+            $success = "Mes " . date('F Y', strtotime($mes . '-01')) . " abierto exitosamente";
         } else {
-            $error = "Error al abrir el mes";
+            switch ($resultado) {
+                case "formato_invalido":
+                    $error = "Formato de mes inválido. Use YYYY-MM";
+                    break;
+                case "error_eliminacion":
+                    $error = "Error al eliminar el cierre de mes de la base de datos";
+                    break;
+                default:
+                    $error = "Error al abrir el mes";
+            }
         }
     }
 }
@@ -404,9 +504,16 @@ function cargarDatosConciliacion($conn, &$pagos, &$movimientos, &$conciliados, $
     }
 }
 
-// CARGAR MESES CERRADOS
+// CARGAR MESES CERRADOS - FUNCIÓN MEJORADA
 function cargarMesesCerrados($conn, &$meses_cerrados) {
-    $sql = "SELECT mes, fecha_cierre, u.nombre as usuario_cierre 
+    $sql = "SELECT 
+                mes, 
+                fecha_cierre, 
+                u.nombre as usuario_cierre,
+                (SELECT COUNT(*) FROM pagos p 
+                 WHERE YEAR(p.fecha_pago) = YEAR(cm.mes) 
+                 AND MONTH(p.fecha_pago) = MONTH(cm.mes)
+                 AND p.estado = 'conciliado') as conciliados_count
             FROM cierres_mes cm
             INNER JOIN dbo.usuarios u ON cm.usuario_id = u.id
             WHERE cerrado = 1
@@ -1126,6 +1233,7 @@ function obtenerCodigoBanco($bancos, $id_banco) {
                                                 <th>Mes</th>
                                                 <th>Fecha de Cierre</th>
                                                 <th>Usuario</th>
+                                                <th>Conciliados</th>
                                                 <th>Acciones</th>
                                             </tr>
                                         </thead>
@@ -1134,14 +1242,18 @@ function obtenerCodigoBanco($bancos, $id_banco) {
                                                 $fecha_cierre = $mes_cerrado['fecha_cierre'] instanceof DateTime ? 
                                                     $mes_cerrado['fecha_cierre']->format('d/m/Y H:i') : 
                                                     date('d/m/Y H:i', strtotime($mes_cerrado['fecha_cierre']));
+                                                $mes_nombre = date('F Y', strtotime($mes_cerrado['mes']));
                                             ?>
                                             <tr>
-                                                <td><?php echo date('F Y', strtotime($mes_cerrado['mes'])); ?></td>
+                                                <td><?php echo $mes_nombre; ?></td>
                                                 <td><?php echo $fecha_cierre; ?></td>
                                                 <td><?php echo $mes_cerrado['usuario_cierre']; ?></td>
                                                 <td>
+                                                    <span class="badge bg-info"><?php echo $mes_cerrado['conciliados_count']; ?> registros</span>
+                                                </td>
+                                                <td>
                                                     <form method="POST" style="display: inline;">
-                                                        <input type="hidden" name="mes" value="<?php echo $mes_cerrado['mes']; ?>">
+                                                        <input type="hidden" name="mes" value="<?php echo date('Y-m', strtotime($mes_cerrado['mes'])); ?>">
                                                         <button type="submit" name="abrir_mes" class="btn btn-warning btn-sm">
                                                             <i class="fas fa-unlock"></i> Abrir
                                                         </button>
@@ -1356,6 +1468,52 @@ function obtenerCodigoBanco($bancos, $id_banco) {
         // Actualizar contador de desconciliados
         document.querySelectorAll('.checkbox-desconciliacion').forEach(checkbox => {
             checkbox.addEventListener('change', actualizarContadorDesconciliados);
+        });
+
+        // Validación del formulario de cierre de mes
+        document.addEventListener('DOMContentLoaded', function() {
+            const formCerrarMes = document.querySelector('form[action*="cerrar_mes"]');
+            if (formCerrarMes) {
+                formCerrarMes.addEventListener('submit', function(e) {
+                    const mesInput = document.getElementById('mes');
+                    if (!mesInput.value) {
+                        e.preventDefault();
+                        alert('Por favor seleccione un mes');
+                        return;
+                    }
+                    
+                    // Verificar que no sea un mes futuro
+                    const selectedDate = new Date(mesInput.value + '-01');
+                    const today = new Date();
+                    const currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                    
+                    if (selectedDate > currentMonth) {
+                        e.preventDefault();
+                        alert('No puede cerrar un mes futuro');
+                        return;
+                    }
+                    
+                    const mesNombre = selectedDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+                    if (!confirm(`¿Está seguro de que desea cerrar el mes de ${mesNombre}? Esta acción no se puede deshacer fácilmente.`)) {
+                        e.preventDefault();
+                    }
+                });
+            }
+
+            // Validación del formulario de apertura de mes
+            document.querySelectorAll('form[action*="abrir_mes"]').forEach(form => {
+                form.addEventListener('submit', function(e) {
+                    const mesInput = this.querySelector('input[name="mes"]');
+                    if (mesInput) {
+                        const selectedDate = new Date(mesInput.value + '-01');
+                        const mesNombre = selectedDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+                        
+                        if (!confirm(`¿Está seguro de que desea abrir el mes de ${mesNombre}? Esto permitirá modificaciones en las conciliaciones.`)) {
+                            e.preventDefault();
+                        }
+                    }
+                });
+            });
         });
 
         // Confirmación antes de acciones
