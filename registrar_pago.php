@@ -1,6 +1,6 @@
 <?php
-session_start();
-require_once 'config/database.php';
+$page_title = "Registrar Nuevo Pago";
+require_once 'header.php';
 
 if (!isset($_SESSION['usuario_id'])) {
     header('Location: login.php');
@@ -82,49 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 }
 
 ?>
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registrar Pago - Sistema de Pagos</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="css/style.css" rel="stylesheet">
-    <link href="css/registrar_pago.css" rel="stylesheet">
-  
-</head>
-<body>
-    <div class="container">
-        <!-- Sidebar (igual al index.php) -->
-        <div class="sidebar">
-            <div class="sidebar-header">
-                <h2><i class="fas fa-money-bill-wave"></i> Sistema Pagos</h2>
-                <small>Base: sistema_pagos</small>
-            </div>
-            <ul class="sidebar-menu">
-                <li><a href="index.php"><i class="fas fa-home"></i> Dashboard</a></li>
-                <li><a href="registrar_pago.php" class="active"><i class="fas fa-plus-circle"></i> Registrar Pago</a></li>
-                <li><a href="pagos.php"><i class="fas fa-list"></i> Mis Pagos</a></li>
-                <?php if ($_SESSION['rol'] == 'admin' || $_SESSION['rol'] == 'consolidador'): ?>
-                <li><a href="conciliacion.php"><i class="fas fa-exchange-alt"></i> Conciliación</a></li>
-                <li><a href="usuarios.php"><i class="fas fa-users"></i> Usuarios</a></li>
-                <?php endif; ?>
-                <?php if ($_SESSION['rol'] == 'admin'): ?>
-                <li><a href="configuracion.php"><i class="fas fa-cog"></i> Configuración</a></li>
-                <?php endif; ?>
-                <li><a href="logout.php"><i class="fas fa-sign-out-alt"></i> Cerrar Sesión</a></li>
-            </ul>
-        </div>
 
-        <!-- Main Content -->
-        <div class="main-content">
-            <div class="top-nav">
-                <h3>Registrar Nuevo Pago</h3>
-                <div class="user-info">
-                    <span>Bienvenido, <?php echo $_SESSION['nombre']; ?></span>
-                    <span class="badge"><?php echo ucfirst($_SESSION['rol']); ?></span>
-                </div>
-            </div>
 
             <div class="content">
                 <?php if ($error): ?>
@@ -293,5 +251,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Cargar tasa al iniciar
         cargarTasaBCV();
     </script>
-</body>
-</html>
+
+
+<?php require_once 'footer.php'; ?>

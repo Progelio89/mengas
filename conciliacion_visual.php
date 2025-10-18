@@ -16,7 +16,7 @@ $pagos = [];
 $movimientos = [];
 $conciliados = [];
 $meses_cerrados = [];
-$bancos = []; // Array para almacenar información de bancos
+$bancos = [];
 $error = '';
 $success = '';
 $vista_activa = isset($_GET['vista']) ? $_GET['vista'] : 'pendientes';
@@ -32,9 +32,8 @@ function cargarBancos($conn, &$bancos) {
     }
 }
 
-// VERIFICAR SI EL MES ESTÁ CERRADO - FUNCIÓN CORREGIDA
+// VERIFICAR SI EL MES ESTÁ CERRADO
 function mesCerrado($conn, $fecha) {
-    // Convertir la fecha al primer día del mes en formato YYYY-MM-DD
     if ($fecha instanceof DateTime) {
         $mes = $fecha->format('Y-m-01');
     } else {
@@ -60,21 +59,18 @@ function mesCerrado($conn, $fecha) {
     return false;
 }
 
-// FUNCIÓN PARA CERRAR MES - MEJORADA
+// FUNCIÓN PARA CERRAR MES
 function cerrarMes($conn, $mes, $usuario_id) {
-    // El input viene como YYYY-MM, convertirlo a YYYY-MM-01
     if (!preg_match('/^\d{4}-\d{2}$/', $mes)) {
         return "formato_invalido";
     }
     
     $mes_completo = $mes . '-01';
     
-    // Verificar si el mes ya está cerrado
     if (mesCerrado($conn, $mes_completo)) {
         return "mes_ya_cerrado";
     }
     
-    // Verificar que no haya registros pendientes para ese mes
     $sql_pendientes = "SELECT COUNT(*) as pendientes 
                       FROM pagos 
                       WHERE estado IN ('pendiente', 'aprobado') 
@@ -113,9 +109,8 @@ function cerrarMes($conn, $mes, $usuario_id) {
     }
 }
 
-// FUNCIÓN PARA ABRIR MES - MEJORADA
+// FUNCIÓN PARA ABRIR MES
 function abrirMes($conn, $mes) {
-    // El input viene como YYYY-MM, convertirlo a YYYY-MM-01
     if (!preg_match('/^\d{4}-\d{2}$/', $mes)) {
         return "formato_invalido";
     }
@@ -229,7 +224,6 @@ if ($_POST) {
         $pago_id = $_POST['pago_id'];
         $movimiento_id = $_POST['movimiento_id'];
         
-        // Validar que la referencia y el monto coincidan exactamente
         $sql_validacion = "SELECT p.referencia as ref_pago, p.monto_bs as monto_pago, 
                                   m.numero_referencia as ref_mov, m.monto as monto_mov
                            FROM pagos p, MovimientosBancarios m 
@@ -238,7 +232,7 @@ if ($_POST) {
         
         if ($stmt_validacion !== false && $row = sqlsrv_fetch_array($stmt_validacion, SQLSRV_FETCH_ASSOC)) {
             $referencia_coincide = ($row['ref_pago'] == $row['ref_mov']);
-            $monto_coincide = (abs($row['monto_pago'] - $row['monto_mov']) < 0.01); // Tolerancia de 0.01 para decimales
+            $monto_coincide = (abs($row['monto_pago'] - $row['monto_mov']) < 0.01);
             
             if (!$referencia_coincide || !$monto_coincide) {
                 $error = "No se puede conciliar: La referencia o el monto no coinciden exactamente";
@@ -267,7 +261,6 @@ if ($_POST) {
             foreach ($_POST['pares_conciliacion'] as $par) {
                 list($pago_id, $movimiento_id) = explode('|', $par);
                 
-                // Validar que la referencia y el monto coincidan exactamente
                 $sql_validacion = "SELECT p.referencia as ref_pago, p.monto_bs as monto_pago, 
                                           m.numero_referencia as ref_mov, m.monto as monto_mov
                                    FROM pagos p, MovimientosBancarios m 
@@ -351,7 +344,7 @@ if ($_POST) {
         }
     }
     
-    // CIERRE DE MES - PROCESAMIENTO MEJORADO
+    // CIERRE DE MES
     if (isset($_POST['cerrar_mes'])) {
         $mes = $_POST['mes'];
         $resultado = cerrarMes($conn, $mes, $usuario_id);
@@ -381,7 +374,7 @@ if ($_POST) {
         }
     }
     
-    // APERTURA DE MES - PROCESAMIENTO MEJORADO
+    // APERTURA DE MES
     if (isset($_POST['abrir_mes'])) {
         $mes = $_POST['mes'];
         $resultado = abrirMes($conn, $mes);
@@ -504,7 +497,7 @@ function cargarDatosConciliacion($conn, &$pagos, &$movimientos, &$conciliados, $
     }
 }
 
-// CARGAR MESES CERRADOS - FUNCIÓN MEJORADA
+// CARGAR MESES CERRADOS
 function cargarMesesCerrados($conn, &$meses_cerrados) {
     $sql = "SELECT 
                 mes, 
@@ -569,6 +562,7 @@ function obtenerCodigoBanco($bancos, $id_banco) {
         .excel-row {
             display: grid;
             border-bottom: 1px solid #eaeaea;
+            cursor: pointer;
         }
         .excel-row-pendientes {
             grid-template-columns: 40px 100px 80px 120px 80px 80px 80px;
@@ -626,12 +620,9 @@ function obtenerCodigoBanco($bancos, $id_banco) {
             background: #fff3cd !important;
             border-left: 3px solid #ffc107;
         }
-        .monto-match {
-            background: #fff3cd;
-            font-weight: bold;
-        }
-        .referencia-match {
-            background: #d1ecf1;
+        .par-seleccionado {
+            background: #e3f2fd !important;
+            border: 2px solid #2196f3 !important;
         }
         .badge-estado {
             font-size: 10px;
@@ -668,13 +659,6 @@ function obtenerCodigoBanco($bancos, $id_banco) {
             min-width: 450px;
             font-size: 12px;
         }
-        .sortable {
-            cursor: pointer;
-            user-select: none;
-        }
-        .sortable:hover {
-            background: #e0e0e0;
-        }
         .banco-badge {
             font-size: 9px;
             padding: 1px 4px;
@@ -708,6 +692,10 @@ function obtenerCodigoBanco($bancos, $id_banco) {
         .btn-conciliar:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+        .checkbox-conciliacion {
+            margin: 0;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -802,7 +790,8 @@ function obtenerCodigoBanco($bancos, $id_banco) {
                     <strong>Para conciliar correctamente:</strong><br>
                     1. La <strong>referencia</strong> debe ser exactamente igual en ambos registros<br>
                     2. El <strong>monto</strong> debe coincidir exactamente<br>
-                    3. Los registros con <span style="background:#d4edda; padding:2px 5px; border-radius:3px;">fondo verde</span> tienen coincidencia exacta y pueden conciliarse
+                    3. Los registros con <span style="background:#d4edda; padding:2px 5px; border-radius:3px;">fondo verde</span> tienen coincidencia exacta y pueden conciliarse<br>
+                    4. Puede seleccionar <strong>múltiples pares</strong> y conciliarlos todos a la vez
                 </p>
             </div>
 
@@ -831,11 +820,13 @@ function obtenerCodigoBanco($bancos, $id_banco) {
                             <div class="excel-table">
                                 <!-- Encabezado -->
                                 <div class="excel-row excel-row-pendientes excel-header">
-                                    <div class="excel-cell">#</div>
-                                    <div class="excel-cell sortable" data-sort="referencia">Referencia</div>
-                                    <div class="excel-cell sortable" data-sort="monto">Monto</div>
-                                    <div class="excel-cell sortable" data-sort="cliente">Cliente</div>
-                                    <div class="excel-cell sortable" data-sort="fecha">Fecha</div>
+                                    <div class="excel-cell">
+                                        <input type="checkbox" id="selectAllPagos" onchange="seleccionarTodosPagos(this.checked)">
+                                    </div>
+                                    <div class="excel-cell">Referencia</div>
+                                    <div class="excel-cell">Monto</div>
+                                    <div class="excel-cell">Cliente</div>
+                                    <div class="excel-cell">Fecha</div>
                                     <div class="excel-cell">Banco Origen</div>
                                     <div class="excel-cell">Estado</div>
                                 </div>
@@ -852,7 +843,6 @@ function obtenerCodigoBanco($bancos, $id_banco) {
                                     
                                     $mes_cerrado = mesCerrado($conn, $pago['fecha_pago']);
                                     
-                                    // Obtener clase CSS para el banco
                                     $banco_clase = 'banco-default';
                                     if (isset($pago['banco_origen'])) {
                                         $banco_nombre = strtolower($pago['banco_origen']);
@@ -870,9 +860,14 @@ function obtenerCodigoBanco($bancos, $id_banco) {
                                      data-cliente="<?php echo htmlspecialchars($pago['cliente_nombre'] ?? ''); ?>"
                                      data-fecha="<?php echo $fecha_pago; ?>"
                                      data-banco="<?php echo htmlspecialchars($pago['banco_origen'] ?? ''); ?>"
-                                     onclick="<?php echo $mes_cerrado ? '' : 'seleccionarPago(this)'; ?>">
+                                     onclick="seleccionarPago(this)">
                                     
-                                    <div class="excel-cell"><?php echo $index + 1; ?></div>
+                                    <div class="excel-cell">
+                                        <input type="checkbox" class="checkbox-conciliacion checkbox-pago" 
+                                               data-pago-id="<?php echo $pago['id']; ?>"
+                                               onchange="toggleParConciliacion(<?php echo $pago['id']; ?>, null, this.checked)"
+                                               <?php echo $mes_cerrado ? 'disabled' : ''; ?>>
+                                    </div>
                                     <div class="excel-cell referencia-cell"><?php echo $pago['referencia']; ?></div>
                                     <div class="excel-cell monto-cell"><?php echo $monto_mostrar; ?></div>
                                     <div class="excel-cell"><?php echo $pago['cliente_nombre'] ?? 'N/A'; ?></div>
@@ -885,13 +880,6 @@ function obtenerCodigoBanco($bancos, $id_banco) {
                                         <?php if ($mes_cerrado): ?>
                                         <i class="fas fa-lock text-danger ms-1" title="Mes cerrado"></i>
                                         <?php endif; ?>
-                                    </div>
-                                    
-                                    <div class="form-check" style="display: none;">
-                                        <input class="form-check-input checkbox-pago" type="checkbox" 
-                                               name="pares_conciliacion[]" 
-                                               value="<?php echo $pago['id']; ?>|"
-                                               <?php echo $mes_cerrado ? 'disabled' : ''; ?>>
                                     </div>
                                 </div>
                                 <?php endforeach; ?>
@@ -929,11 +917,13 @@ function obtenerCodigoBanco($bancos, $id_banco) {
                             <div class="excel-table">
                                 <!-- Encabezado -->
                                 <div class="excel-row excel-row-pendientes excel-header">
-                                    <div class="excel-cell">#</div>
-                                    <div class="excel-cell sortable" data-sort="referencia">Referencia</div>
-                                    <div class="excel-cell sortable" data-sort="monto">Monto</div>
+                                    <div class="excel-cell">
+                                        <input type="checkbox" id="selectAllMovimientos" onchange="seleccionarTodosMovimientos(this.checked)">
+                                    </div>
+                                    <div class="excel-cell">Referencia</div>
+                                    <div class="excel-cell">Monto</div>
                                     <div class="excel-cell">Banco</div>
-                                    <div class="excel-cell sortable" data-sort="fecha">Fecha</div>
+                                    <div class="excel-cell">Fecha</div>
                                     <div class="excel-cell">Descripción</div>
                                     <div class="excel-cell">Tipo</div>
                                 </div>
@@ -946,11 +936,9 @@ function obtenerCodigoBanco($bancos, $id_banco) {
                                     
                                     $mes_cerrado = mesCerrado($conn, $movimiento['fecha_movimiento']);
                                     
-                                    // Obtener información del banco
                                     $nombre_banco = $movimiento['nombre_banco'] ?? obtenerNombreBanco($bancos, $movimiento['id_banco']);
                                     $codigo_banco = $movimiento['codigo_banco'] ?? obtenerCodigoBanco($bancos, $movimiento['id_banco']);
                                     
-                                    // Obtener clase CSS para el banco
                                     $banco_clase = 'banco-default';
                                     $banco_nombre = strtolower($nombre_banco);
                                     if (strpos($banco_nombre, 'provincial') !== false) $banco_clase = 'banco-provincial';
@@ -966,9 +954,14 @@ function obtenerCodigoBanco($bancos, $id_banco) {
                                      data-banco="<?php echo htmlspecialchars($nombre_banco); ?>"
                                      data-fecha="<?php echo $fecha_mov; ?>"
                                      data-descripcion="<?php echo htmlspecialchars($movimiento['descripcion']); ?>"
-                                     onclick="<?php echo $mes_cerrado ? '' : 'seleccionarMovimiento(this)'; ?>">
+                                     onclick="seleccionarMovimiento(this)">
                                     
-                                    <div class="excel-cell"><?php echo $index + 1; ?></div>
+                                    <div class="excel-cell">
+                                        <input type="checkbox" class="checkbox-conciliacion checkbox-movimiento" 
+                                               data-movimiento-id="<?php echo $movimiento['id_movimiento']; ?>"
+                                               onchange="toggleParConciliacion(null, <?php echo $movimiento['id_movimiento']; ?>, this.checked)"
+                                               <?php echo $mes_cerrado ? 'disabled' : ''; ?>>
+                                    </div>
                                     <div class="excel-cell referencia-cell"><?php echo $movimiento['numero_referencia']; ?></div>
                                     <div class="excel-cell monto-cell">Bs <?php echo number_format($movimiento['monto'], 2); ?></div>
                                     <div class="excel-cell">
@@ -985,13 +978,6 @@ function obtenerCodigoBanco($bancos, $id_banco) {
                                         <?php if ($mes_cerrado): ?>
                                         <i class="fas fa-lock text-danger ms-1" title="Mes cerrado"></i>
                                         <?php endif; ?>
-                                    </div>
-                                    
-                                    <div class="form-check" style="display: none;">
-                                        <input class="form-check-input checkbox-movimiento" type="checkbox" 
-                                               name="pares_conciliacion[]" 
-                                               value="|<?php echo $movimiento['id_movimiento']; ?>"
-                                               <?php echo $mes_cerrado ? 'disabled' : ''; ?>>
                                     </div>
                                 </div>
                                 <?php endforeach; ?>
@@ -1032,16 +1018,23 @@ function obtenerCodigoBanco($bancos, $id_banco) {
                             <i class="fas fa-exclamation-triangle"></i>
                             <span id="textoValidacion"></span>
                         </div>
-                        
-                        <div class="d-flex gap-2 justify-content-center">
-                            <button type="submit" name="conciliar_individual" class="btn btn-success btn-sm" id="btnConciliarIndividual" disabled>
-                                <i class="fas fa-check-circle"></i> Conciliar Par
-                            </button>
-                            <button type="submit" name="conciliar_multiple" class="btn btn-primary btn-sm" id="btnConciliarMultiple">
-                                <i class="fas fa-layer-group"></i> Conciliar (<span id="contadorPares">0</span>)
+
+                        <!-- Botones de acción rápida -->
+                        <div class="d-flex gap-1 justify-content-center mb-2">
+                            <button type="button" class="btn btn-info btn-sm" onclick="seleccionarTodosExactos()">
+                                <i class="fas fa-magic"></i> Seleccionar Coincidencias
                             </button>
                             <button type="button" class="btn btn-secondary btn-sm" onclick="limpiarSeleccion()">
                                 <i class="fas fa-times"></i> Limpiar
+                            </button>
+                        </div>
+                        
+                        <div class="d-flex gap-2 justify-content-center">
+                            <button type="submit" name="conciliar_individual" class="btn btn-success btn-sm" id="btnConciliarIndividual" disabled>
+                                <i class="fas fa-check-circle"></i> Conciliar Par Individual
+                            </button>
+                            <button type="submit" name="conciliar_multiple" class="btn btn-primary btn-sm" id="btnConciliarMultiple">
+                                <i class="fas fa-layer-group"></i> Conciliar Múltiple (<span id="contadorPares">0</span>)
                             </button>
                         </div>
                     </div>
@@ -1050,6 +1043,9 @@ function obtenerCodigoBanco($bancos, $id_banco) {
                 <!-- Campos ocultos para conciliación individual -->
                 <input type="hidden" name="pago_id" id="inputPagoId">
                 <input type="hidden" name="movimiento_id" id="inputMovimientoId">
+                
+                <!-- Campos ocultos para pares de conciliación múltiple -->
+                <div id="hiddenParesConciliacion"></div>
             </form>
 
             <?php elseif ($vista_activa == 'conciliados'): ?>
@@ -1085,7 +1081,9 @@ function obtenerCodigoBanco($bancos, $id_banco) {
                         <div class="excel-table">
                             <!-- Encabezado -->
                             <div class="excel-row excel-row-conciliados excel-header">
-                                <div class="excel-cell">#</div>
+                                <div class="excel-cell">
+                                    <input type="checkbox" id="selectAllDesconciliados" onchange="seleccionarTodosDesconciliados(this.checked)">
+                                </div>
                                 <div class="excel-cell">Ref. Pago</div>
                                 <div class="excel-cell">Monto Pago</div>
                                 <div class="excel-cell">Cliente</div>
@@ -1112,11 +1110,9 @@ function obtenerCodigoBanco($bancos, $id_banco) {
                                 
                                 $mes_cerrado = mesCerrado($conn, $conciliado['fecha_pago']);
                                 
-                                // Obtener información del banco
                                 $nombre_banco = $conciliado['nombre_banco'] ?? obtenerNombreBanco($bancos, $conciliado['id_banco']);
                                 $codigo_banco = $conciliado['codigo_banco'] ?? obtenerCodigoBanco($bancos, $conciliado['id_banco']);
                                 
-                                // Obtener clase CSS para el banco
                                 $banco_clase = 'banco-default';
                                 $banco_nombre = strtolower($nombre_banco);
                                 if (strpos($banco_nombre, 'provincial') !== false) $banco_clase = 'banco-provincial';
@@ -1133,8 +1129,8 @@ function obtenerCodigoBanco($bancos, $id_banco) {
                                     <input type="checkbox" class="form-check-input checkbox-desconciliacion" 
                                            name="pares_desconciliacion[]" 
                                            value="<?php echo $conciliado['pago_id']; ?>|<?php echo $conciliado['movimiento_id']; ?>"
+                                           onchange="actualizarContadorDesconciliados()"
                                            <?php echo $mes_cerrado ? 'disabled' : ''; ?>>
-                                    <?php echo $index + 1; ?>
                                 </div>
                                 <div class="excel-cell"><?php echo $conciliado['referencia_pago']; ?></div>
                                 <div class="excel-cell">
@@ -1278,14 +1274,15 @@ function obtenerCodigoBanco($bancos, $id_banco) {
     <script>
         let pagoSeleccionado = null;
         let movimientoSeleccionado = null;
-        let paresSeleccionados = new Set();
-        let sortDirection = {};
+        let paresConciliacion = new Map(); // Map para almacenar pares: pago_id -> movimiento_id
 
         function cambiarVista(vista) {
             window.location.href = '?vista=' + vista;
         }
 
         function seleccionarPago(elemento) {
+            if (elemento.classList.contains('bloqueado')) return;
+            
             document.querySelectorAll('.pago-item.selected').forEach(item => {
                 item.classList.remove('selected');
             });
@@ -1305,6 +1302,8 @@ function obtenerCodigoBanco($bancos, $id_banco) {
         }
 
         function seleccionarMovimiento(elemento) {
+            if (elemento.classList.contains('bloqueado')) return;
+            
             document.querySelectorAll('.movimiento-item.selected').forEach(item => {
                 item.classList.remove('selected');
             });
@@ -1331,17 +1330,14 @@ function obtenerCodigoBanco($bancos, $id_banco) {
             const montoMov = parseFloat(movimientoSeleccionado.dataset.monto);
             const referenciaMov = movimientoSeleccionado.dataset.referencia;
             
-            // Verificar coincidencia exacta
             const referenciaCoincideExactamente = (referenciaPago === referenciaMov);
             const montoCoincideExactamente = (Math.abs(montoPago - montoMov) < 0.01);
             
-            // Actualizar interfaz según coincidencia
             const infoValidacion = document.getElementById('infoValidacion');
             const textoValidacion = document.getElementById('textoValidacion');
             const btnConciliar = document.getElementById('btnConciliarIndividual');
             
             if (referenciaCoincideExactamente && montoCoincideExactamente) {
-                // Coincidencia exacta - puede conciliar
                 pagoSeleccionado.classList.add('matched-exact');
                 movimientoSeleccionado.classList.add('matched-exact');
                 pagoSeleccionado.classList.remove('matched-partial');
@@ -1351,8 +1347,14 @@ function obtenerCodigoBanco($bancos, $id_banco) {
                 btnConciliar.disabled = false;
                 btnConciliar.classList.remove('btn-secondary');
                 btnConciliar.classList.add('btn-success');
+                
+                // Auto-seleccionar para conciliación múltiple si hay coincidencia exacta
+                const pagoId = pagoSeleccionado.dataset.pagoId;
+                const movimientoId = movimientoSeleccionado.dataset.movimientoId;
+                if (!paresConciliacion.has(pagoId)) {
+                    toggleParConciliacion(pagoId, movimientoId, true);
+                }
             } else {
-                // Coincidencia parcial o ninguna - no puede conciliar
                 pagoSeleccionado.classList.add('matched-partial');
                 movimientoSeleccionado.classList.add('matched-partial');
                 pagoSeleccionado.classList.remove('matched-exact');
@@ -1375,34 +1377,80 @@ function obtenerCodigoBanco($bancos, $id_banco) {
             }
         }
 
-        function mostrarAcciones() {
-            if (pagoSeleccionado && movimientoSeleccionado) {
-                document.getElementById('accionesConciliacion').style.display = 'block';
+        function toggleParConciliacion(pagoId, movimientoId, checked) {
+            if (pagoId && movimientoId) {
+                // Par completo
+                const parId = `${pagoId}|${movimientoId}`;
                 
-                const parId = `${pagoSeleccionado.dataset.pagoId}|${movimientoSeleccionado.dataset.movimientoId}`;
-                
-                const checkboxPago = pagoSeleccionado.querySelector('.checkbox-pago');
-                const checkboxMov = movimientoSeleccionado.querySelector('.checkbox-movimiento');
-                
-                if (checkboxPago && checkboxMov) {
-                    checkboxPago.value = `${pagoSeleccionado.dataset.pagoId}|${movimientoSeleccionado.dataset.movimientoId}`;
-                    checkboxMov.value = `${pagoSeleccionado.dataset.pagoId}|${movimientoSeleccionado.dataset.movimientoId}`;
+                if (checked) {
+                    paresConciliacion.set(pagoId, movimientoId);
                     
-                    if (!checkboxPago.checked) {
-                        checkboxPago.checked = true;
-                        checkboxMov.checked = true;
-                        paresSeleccionados.add(parId);
+                    // Marcar checkboxes
+                    document.querySelectorAll(`.checkbox-pago[data-pago-id="${pagoId}"]`).forEach(cb => cb.checked = true);
+                    document.querySelectorAll(`.checkbox-movimiento[data-movimiento-id="${movimientoId}"]`).forEach(cb => cb.checked = true);
+                    
+                    // Resaltar elementos
+                    document.querySelectorAll(`.pago-item[data-pago-id="${pagoId}"]`).forEach(el => el.classList.add('par-seleccionado'));
+                    document.querySelectorAll(`.movimiento-item[data-movimiento-id="${movimientoId}"]`).forEach(el => el.classList.add('par-seleccionado'));
+                } else {
+                    paresConciliacion.delete(pagoId);
+                    
+                    // Desmarcar checkboxes
+                    document.querySelectorAll(`.checkbox-pago[data-pago-id="${pagoId}"]`).forEach(cb => cb.checked = false);
+                    document.querySelectorAll(`.checkbox-movimiento[data-movimiento-id="${movimientoId}"]`).forEach(cb => cb.checked = false);
+                    
+                    // Quitar resaltado
+                    document.querySelectorAll(`.pago-item[data-pago-id="${pagoId}"]`).forEach(el => el.classList.remove('par-seleccionado'));
+                    document.querySelectorAll(`.movimiento-item[data-movimiento-id="${movimientoId}"]`).forEach(el => el.classList.remove('par-seleccionado'));
+                }
+            } else if (pagoId) {
+                // Solo pago - buscar movimiento correspondiente
+                const movimientoId = paresConciliacion.get(pagoId);
+                if (movimientoId) {
+                    toggleParConciliacion(pagoId, movimientoId, checked);
+                }
+            } else if (movimientoId) {
+                // Solo movimiento - buscar pago correspondiente
+                for (let [pId, mId] of paresConciliacion.entries()) {
+                    if (mId == movimientoId) {
+                        toggleParConciliacion(pId, movimientoId, checked);
+                        break;
                     }
-                    
-                    actualizarContadorPares();
                 }
             }
+            
+            actualizarParesConciliacion();
+            actualizarContadorPares();
+        }
+
+        function actualizarParesConciliacion() {
+            const container = document.getElementById('hiddenParesConciliacion');
+            container.innerHTML = '';
+            
+            paresConciliacion.forEach((movimientoId, pagoId) => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'pares_conciliacion[]';
+                input.value = `${pagoId}|${movimientoId}`;
+                container.appendChild(input);
+            });
         }
 
         function actualizarContadorPares() {
-            const checkboxes = document.querySelectorAll('input[name="pares_conciliacion[]"]:checked');
-            document.getElementById('contadorPares').textContent = checkboxes.length;
-            document.getElementById('contador-seleccionados').textContent = checkboxes.length;
+            const count = paresConciliacion.size;
+            document.getElementById('contadorPares').textContent = count;
+            document.getElementById('contador-seleccionados').textContent = count;
+            
+            const btnMultiple = document.getElementById('btnConciliarMultiple');
+            if (count > 0) {
+                btnMultiple.disabled = false;
+                btnMultiple.classList.remove('btn-secondary');
+                btnMultiple.classList.add('btn-primary');
+            } else {
+                btnMultiple.disabled = true;
+                btnMultiple.classList.remove('btn-primary');
+                btnMultiple.classList.add('btn-secondary');
+            }
         }
 
         function actualizarContadorDesconciliados() {
@@ -1410,15 +1458,79 @@ function obtenerCodigoBanco($bancos, $id_banco) {
             document.getElementById('contadorDesconciliados').textContent = checkboxes.length;
         }
 
+        function seleccionarTodosPagos(checked) {
+            document.querySelectorAll('.checkbox-pago:not(:disabled)').forEach(checkbox => {
+                const pagoId = checkbox.dataset.pagoId;
+                // Buscar movimiento con referencia y monto coincidente
+                const pagoItem = document.querySelector(`.pago-item[data-pago-id="${pagoId}"]`);
+                if (pagoItem) {
+                    const referencia = pagoItem.dataset.referencia;
+                    const monto = pagoItem.dataset.monto;
+                    
+                    // Buscar movimiento que coincida
+                    const movimientoItem = document.querySelector(`.movimiento-item:not(.bloqueado)[data-referencia="${referencia}"]`);
+                    if (movimientoItem && Math.abs(parseFloat(movimientoItem.dataset.monto) - parseFloat(monto)) < 0.01) {
+                        toggleParConciliacion(pagoId, movimientoItem.dataset.movimientoId, checked);
+                    }
+                }
+            });
+        }
+
+        function seleccionarTodosMovimientos(checked) {
+            document.querySelectorAll('.checkbox-movimiento:not(:disabled)').forEach(checkbox => {
+                const movimientoId = checkbox.dataset.movimientoId;
+                const movimientoItem = document.querySelector(`.movimiento-item[data-movimiento-id="${movimientoId}"]`);
+                if (movimientoItem) {
+                    const referencia = movimientoItem.dataset.referencia;
+                    const monto = movimientoItem.dataset.monto;
+                    
+                    // Buscar pago que coincida
+                    const pagoItem = document.querySelector(`.pago-item:not(.bloqueado)[data-referencia="${referencia}"]`);
+                    if (pagoItem && Math.abs(parseFloat(pagoItem.dataset.monto) - parseFloat(monto)) < 0.01) {
+                        toggleParConciliacion(pagoItem.dataset.pagoId, movimientoId, checked);
+                    }
+                }
+            });
+        }
+
+        function seleccionarTodosDesconciliados(checked) {
+            document.querySelectorAll('.checkbox-desconciliacion:not(:disabled)').forEach(checkbox => {
+                checkbox.checked = checked;
+            });
+            actualizarContadorDesconciliados();
+        }
+
+        function seleccionarTodosExactos() {
+            // Buscar todos los pares con coincidencia exacta
+            document.querySelectorAll('.pago-item:not(.bloqueado)').forEach(pagoItem => {
+                const referencia = pagoItem.dataset.referencia;
+                const monto = pagoItem.dataset.monto;
+                const pagoId = pagoItem.dataset.pagoId;
+                
+                // Buscar movimiento que coincida exactamente
+                const movimientoItem = document.querySelector(`.movimiento-item:not(.bloqueado)[data-referencia="${referencia}"]`);
+                if (movimientoItem && Math.abs(parseFloat(movimientoItem.dataset.monto) - parseFloat(monto)) < 0.01) {
+                    toggleParConciliacion(pagoId, movimientoItem.dataset.movimientoId, true);
+                }
+            });
+        }
+
+        function mostrarAcciones() {
+            if (pagoSeleccionado && movimientoSeleccionado) {
+                document.getElementById('accionesConciliacion').style.display = 'block';
+            }
+        }
+
         function limpiarSeleccion() {
             pagoSeleccionado = null;
             movimientoSeleccionado = null;
+            paresConciliacion.clear();
             
-            document.querySelectorAll('.selected, .matched-exact, .matched-partial').forEach(item => {
-                item.classList.remove('selected', 'matched-exact', 'matched-partial');
+            document.querySelectorAll('.selected, .matched-exact, .matched-partial, .par-seleccionado').forEach(item => {
+                item.classList.remove('selected', 'matched-exact', 'matched-partial', 'par-seleccionado');
             });
             
-            document.querySelectorAll('input[name="pares_conciliacion[]"]').forEach(checkbox => {
+            document.querySelectorAll('.checkbox-conciliacion').forEach(checkbox => {
                 checkbox.checked = false;
             });
             
@@ -1429,12 +1541,12 @@ function obtenerCodigoBanco($bancos, $id_banco) {
             document.getElementById('inputMovimientoId').value = '';
             document.getElementById('infoValidacion').style.display = 'none';
             
-            paresSeleccionados.clear();
+            actualizarParesConciliacion();
             actualizarContadorPares();
         }
 
         function limpiarSeleccionDesconciliados() {
-            document.querySelectorAll('input[name="pares_desconciliacion[]"]').forEach(checkbox => {
+            document.querySelectorAll('.checkbox-desconciliacion').forEach(checkbox => {
                 checkbox.checked = false;
             });
             actualizarContadorDesconciliados();
@@ -1465,65 +1577,14 @@ function obtenerCodigoBanco($bancos, $id_banco) {
             });
         });
 
-        // Actualizar contador de desconciliados
-        document.querySelectorAll('.checkbox-desconciliacion').forEach(checkbox => {
-            checkbox.addEventListener('change', actualizarContadorDesconciliados);
-        });
-
-        // Validación del formulario de cierre de mes
-        document.addEventListener('DOMContentLoaded', function() {
-            const formCerrarMes = document.querySelector('form[action*="cerrar_mes"]');
-            if (formCerrarMes) {
-                formCerrarMes.addEventListener('submit', function(e) {
-                    const mesInput = document.getElementById('mes');
-                    if (!mesInput.value) {
-                        e.preventDefault();
-                        alert('Por favor seleccione un mes');
-                        return;
-                    }
-                    
-                    // Verificar que no sea un mes futuro
-                    const selectedDate = new Date(mesInput.value + '-01');
-                    const today = new Date();
-                    const currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-                    
-                    if (selectedDate > currentMonth) {
-                        e.preventDefault();
-                        alert('No puede cerrar un mes futuro');
-                        return;
-                    }
-                    
-                    const mesNombre = selectedDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-                    if (!confirm(`¿Está seguro de que desea cerrar el mes de ${mesNombre}? Esta acción no se puede deshacer fácilmente.`)) {
-                        e.preventDefault();
-                    }
-                });
-            }
-
-            // Validación del formulario de apertura de mes
-            document.querySelectorAll('form[action*="abrir_mes"]').forEach(form => {
-                form.addEventListener('submit', function(e) {
-                    const mesInput = this.querySelector('input[name="mes"]');
-                    if (mesInput) {
-                        const selectedDate = new Date(mesInput.value + '-01');
-                        const mesNombre = selectedDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-                        
-                        if (!confirm(`¿Está seguro de que desea abrir el mes de ${mesNombre}? Esto permitirá modificaciones en las conciliaciones.`)) {
-                            e.preventDefault();
-                        }
-                    }
-                });
-            });
-        });
-
-        // Confirmación antes de acciones
+        // Validación del formulario
         document.getElementById('formConciliacion')?.addEventListener('submit', function(e) {
             if (e.submitter.name === 'conciliar_individual') {
                 if (!confirm('¿Está seguro de que desea conciliar este par de registros?')) {
                     e.preventDefault();
                 }
             } else if (e.submitter.name === 'conciliar_multiple') {
-                const cantidad = document.querySelectorAll('input[name="pares_conciliacion[]"]:checked').length;
+                const cantidad = paresConciliacion.size;
                 if (cantidad === 0) {
                     alert('Debe seleccionar al menos un par para conciliar');
                     e.preventDefault();
@@ -1553,3 +1614,4 @@ function obtenerCodigoBanco($bancos, $id_banco) {
     </script>
 </body>
 </html>
+
